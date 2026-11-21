@@ -333,7 +333,7 @@ Stop the Compose stack first if Docker is short on memory.
 | 2 | Next.js website: ISR + tag revalidation + warming, Lighthouse 100 | ✅ |
 | 3 | Redis: cache-aside, single-flight, fail-open, view counters, trending | ✅ |
 | 4 | Admin: JWT + rotating refresh tokens, CSRF, sanitized Markdown editor | ✅ |
-| 5 | API gateway: routing, edge JWT validation, Redis rate limiting | in progress |
+| 5 | API gateway: routing, edge JWT validation, Redis rate limiting | ✅ |
 | 6 | Kafka: transactional outbox, idempotent consumers, DLT, search API | ✅ |
 | 7 | ingestion-service + RabbitMQ: retries, DLQ, SSRF/XXE-safe crawling | in progress |
 | 8 | assistant-service: RAG, tool calling, SSE streaming, golden-set evals | in progress |

@@ -42,7 +42,7 @@ flowchart LR
 | 2 | Next.js website: ISR, tag revalidation, Lighthouse 100 | ✅ |
 | 3 | Redis: cache-aside, single-flight, view counters, trending | ✅ |
 | 4 | Admin: JWT + refresh rotation, CSRF, sanitized Markdown editor | ✅ |
-| 5 | API gateway: routing, JWT validation, rate limiting | in progress |
+| 5 | API gateway: routing, JWT validation, rate limiting | ✅ |
 | 6 | Kafka: transactional outbox, idempotent consumers | ✅ |
 | 7 | Ingestion with RabbitMQ: retries, DLQ, safe crawling | planned |
 | 8 | AI assistant: RAG, tool calling, streaming | planned |

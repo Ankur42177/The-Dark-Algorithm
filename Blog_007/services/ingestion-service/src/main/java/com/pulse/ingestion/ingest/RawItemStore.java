@@ -46,7 +46,14 @@ public class RawItemStore {
     public int saveNew(FeedSource src, List<FeedParser.ParsedItem> items) {
         int fresh = 0;
         for (FeedParser.ParsedItem it : items) {
-            String canonical = canonical(it.url());
+            String canonical;
+            try {
+                canonical = canonical(it.url());
+            } catch (RuntimeException badUrl) {
+                // One malformed link must not fail the whole feed (it used to: an IllegalArgumentException isn't a
+                // FetchException, so the worker treated it as TRANSIENT and retried the feed 5 times). Skip the item.
+                continue;
+            }
             String hash = sha256(canonical);
             String key = "dedupe:article:" + hash;
             if (seen(key)) {

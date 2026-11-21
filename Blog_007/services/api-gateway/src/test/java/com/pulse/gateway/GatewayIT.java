@@ -148,9 +148,9 @@ class GatewayIT {
     @Test
     void publicFormsShareAStrictFivePerTenMinutesBucket() throws Exception {
         Map<String, String> json = Map.of("Content-Type", "application/json");
-        // newsletter AND contact count against the same "forms" bucket for this IP
-        for (String path : java.util.List.of("/api/v1/newsletter/subscribe", "/api/v1/newsletter/confirm",
-                "/api/v1/contact", "/api/v1/newsletter/unsubscribe", "/api/v1/contact")) {
+        // newsletter subscribe AND contact count against the same "forms" bucket for this IP
+        for (String path : java.util.List.of("/api/v1/newsletter/subscribe", "/api/v1/contact",
+                "/api/v1/newsletter/subscribe", "/api/v1/contact", "/api/v1/contact")) {
             assertThat(send("POST", path, json, "{}").statusCode()).as(path).isEqualTo(200);
         }
         assertThat(RECEIVED).containsKeys("/api/v1/newsletter/subscribe", "/api/v1/contact");   // routed to content-service
@@ -161,6 +161,10 @@ class GatewayIT {
         assertThat(sixth.body()).contains("forms");
         // public reads are a different bucket
         assertThat(send("GET", "/api/v1/posts", Map.of(), null).statusCode()).isEqualTo(200);
+        // ... and so are the links clicked from an email: an exhausted forms bucket never blocks an unsubscribe
+        assertThat(send("POST", "/api/v1/newsletter/unsubscribe", json, "{}").statusCode()).isEqualTo(200);
+        assertThat(send("POST", "/api/v1/newsletter/confirm", json, "{}").statusCode()).isEqualTo(200);
+        assertThat(RECEIVED).containsKeys("/api/v1/newsletter/unsubscribe", "/api/v1/newsletter/confirm");
     }
 
     @Test

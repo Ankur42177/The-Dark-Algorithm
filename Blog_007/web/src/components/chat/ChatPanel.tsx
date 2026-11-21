@@ -423,9 +423,14 @@ function Answer({ m, pathname, copied, onCopy, onRetry, onNavigate, onLink }: {
             <div className="mt-3 flex flex-wrap gap-2">
               {m.actions.map((a) => {
                 const here = a.path === pathname;
-                return (
-                  <button key={a.path} type="button" data-testid="harvey-action" onClick={() => onNavigate(a)} className="btn-pill !px-4 !py-2 !text-[.82rem]">
-                    {here ? <>You&apos;re on {a.label} <span aria-hidden="true">✓</span></> : <>Take me to {a.label} <span className="arrow" aria-hidden="true">→</span></>}
+                return here ? (
+                  <button key={a.path} type="button" data-testid="harvey-action" data-here="true" onClick={() => onNavigate(a)} className="harvey-chip">
+                    You&apos;re on {a.label} <span aria-hidden="true" className="ml-1">✓</span>
+                  </button>
+                ) : (
+                  <button key={a.path} type="button" data-testid="harvey-action" onClick={() => onNavigate(a)}
+                          className="btn-pill !px-4 !py-2 !text-[.8rem] !normal-case !tracking-normal">
+                    Take me to {a.label} <span className="arrow" aria-hidden="true">→</span>
                   </button>
                 );
               })}

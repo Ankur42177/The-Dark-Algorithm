@@ -1,0 +1,48 @@
+{{- /*
+KEDA ScaledObject: scale on WORK WAITING (queue length, consumer lag, list length, cron windows...)
+instead of CPU, and down to ZERO when idle. KEDA feeds external metrics to an HPA it creates and manages.
+Triggers come from values; `tpl` lets them reference {{ .Release.Namespace }} etc.
+Requires KEDA's CRDs (installed by scripts/k8s-up.sh).
+*/}}
+{{- range $name, $svc := .Values.services }}
+{{- $keda := (($svc.autoscaling | default dict).keda | default dict) }}
+{{- if and $svc.enabled $keda.enabled }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pulse.labels" (dict "name" $name "root" $) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ $name }}
+  minReplicaCount: {{ $keda.minReplicaCount | default 0 }}
+  maxReplicaCount: {{ $keda.maxReplicaCount | default 10 }}
+  pollingInterval: {{ $keda.pollingInterval | default 15 }}   # seconds between checks of the trigger source
+  cooldownPeriod: {{ $keda.cooldownPeriod | default 120 }}    # idle seconds before scaling back to 0
+  {{- with $keda.advanced }}
+  advanced:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  triggers:
+    {{- tpl (toYaml $keda.triggers) $ | nindent 4 }}
+{{- with $keda.triggerAuthentication }}
+---
+# Where KEDA finds credentials for the trigger (e.g. the RabbitMQ URL), without putting them in the ScaledObject.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "pulse.labels" (dict "name" $name "root" $) | nindent 4 }}
+spec:
+  secretTargetRef:
+    {{- range .secretTargetRef }}
+    - parameter: {{ .parameter }}
+      name: {{ $.Values.secrets.name }}
+      key: {{ .key }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

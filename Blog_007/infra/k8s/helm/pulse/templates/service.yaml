@@ -1,0 +1,48 @@
+{{- /*
+A Service gives a set of pods ONE stable name + virtual IP. "content-service" resolves via cluster DNS to
+a ClusterIP that load-balances across all READY content-service pods (that's what readiness probes gate).
+Two Services per app:
+  <name>             the app port; ClusterIP inside the cluster, or NodePort when reachable from your Mac
+  <name>-management  the actuator port; ALWAYS ClusterIP — health/metrics are never exposed outside
+*/}}
+{{- range $name, $svc := .Values.services }}
+{{- if and $svc.enabled (ne (($svc.service | default dict).enabled | toString) "false") }}
+{{- $ctx := dict "name" $name "root" $ }}
+{{- $type := (($svc.service | default dict).type | default "ClusterIP") }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pulse.labels" $ctx | nindent 4 }}
+spec:
+  type: {{ $type }}
+  selector:
+    {{- include "pulse.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $svc.port }}
+      targetPort: http
+      {{- if and (eq $type "NodePort") $svc.service.nodePort }}
+      nodePort: {{ $svc.service.nodePort }}
+      {{- end }}
+{{- if $svc.managementPort }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-management
+  labels:
+    {{- include "pulse.labels" $ctx | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "pulse.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: management
+      port: {{ $svc.managementPort }}
+      targetPort: management
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,22 @@
+# =====================================================================
+# Chart.yaml — the chart's identity card.
+# Designed and developed by Ankur Kumar · © 2026 Ravenclaw_007 LLC
+# =====================================================================
+apiVersion: v2                 # Helm 3+ chart format
+name: pulse
+description: Pulse platform — Spring Boot microservices, Next.js web and local infrastructure for Kubernetes
+type: application              # (vs "library": a chart of reusable templates only)
+version: 0.1.0                 # version of the CHART (bump on every template/values change)
+appVersion: "0.1.0"            # version of the APPLICATION it deploys (shown in `helm list`)
+kubeVersion: ">=1.30.0-0"      # refuse to install on clusters that are too old
+home: https://github.com/Ankur42177/The-Dark-Algorithm
+sources:
+  - https://github.com/Ankur42177/The-Dark-Algorithm
+keywords: [pulse, spring-boot, nextjs, microservices, autoscaling, keda]
+maintainers:
+  - name: Ankur Kumar
+    url: https://github.com/Ankur42177
+annotations:
+  pulse/designed-and-developed-by: "Ankur Kumar"
+  pulse/owner: "Ravenclaw_007 LLC"
+  pulse/copyright: "© 2026 Ravenclaw_007 LLC"

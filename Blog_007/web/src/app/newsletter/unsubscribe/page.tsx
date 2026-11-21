@@ -9,6 +9,8 @@ export default function UnsubscribePage() {
   return (
     <Suspense>
       <TokenAction path="/api/v1/newsletter/unsubscribe" copy={{
+        ask: "Leave the Pulse newsletter?",
+        button: "Yes, unsubscribe me",
         working: "Taking you off the list…",
         okTitle: "Unsubscribed. No hard feelings.",
         okBody: "You won't get any more wildcards. If you ever miss the surprise, the door is always open.",

@@ -63,6 +63,7 @@
         <module>services/content-service</module>
         <module>services/ingestion-service</module>
         <module>services/api-gateway</module>
+        <module>services/assistant-service</module>
     </modules>
 
     <properties>

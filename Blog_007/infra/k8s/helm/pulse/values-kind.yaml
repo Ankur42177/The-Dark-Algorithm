@@ -1,0 +1,83 @@
+# =====================================================================
+# values-kind.yaml — overrides for the local kind cluster on a 16 GB Mac.
+#   helm upgrade --install pulse infra/k8s/helm/pulse -n pulse -f infra/k8s/helm/pulse/values-kind.yaml
+# Only what DIFFERS from values.yaml is listed here (Helm deep-merges maps; lists are replaced).
+# =====================================================================
+services:
+  content-service:
+    env:
+      SPRING_PROFILES_ACTIVE: dev                       # load the sample posts
+      PULSE_CORS_ORIGINS: http://localhost:30000          # the website as seen from your browser
+    resources:
+      requests: { cpu: 250m, memory: 448Mi }
+      limits:   { cpu: "1",  memory: 640Mi }
+    service: { type: NodePort, nodePort: 30081 }          # http://localhost:30081 (kind port mapping)
+    autoscaling:
+      hpa:
+        minReplicas: 1
+        maxReplicas: 4
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 0
+            policies: [{ type: Percent, value: 100, periodSeconds: 15 }]
+          scaleDown:
+            stabilizationWindowSeconds: 60                # shorter than prod so the demo scales back quickly
+            policies: [{ type: Pods, value: 1, periodSeconds: 30 }]
+
+  api-gateway:
+    env:
+      PULSE_CORS_ORIGINS: http://localhost:30000
+      PULSE_TRUSTED_PROXY_HOPS: "0"   # NodePort straight from your Mac: no proxy in front
+    resources:
+      requests: { cpu: 200m, memory: 320Mi }
+      limits:   { cpu: "1",  memory: 512Mi }
+    service: { type: NodePort, nodePort: 30080 }        # http://localhost:30080
+    autoscaling:
+      hpa: { minReplicas: 1, maxReplicas: 2 }
+
+  web:
+    env:
+      SITE_URL: http://localhost:30000
+    service: { type: NodePort, nodePort: 30000 }
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 320Mi }
+    autoscaling:
+      hpa: { minReplicas: 1, maxReplicas: 2 }
+
+  # KEDA demo until RabbitMQ/Kafka arrive: scale a worker on the length of a Redis LIST, 0..5 replicas.
+  #   kubectl -n pulse exec pulse-redis-0 -- redis-cli RPUSH demo:jobs 1 2 3 ... (see the lessons)
+  queue-demo-worker:
+    enabled: true
+    image: { repository: busybox, tag: "1.37.0" }
+    command: ["sh", "-c", "echo 'pretend to process demo:jobs'; while true; do sleep 3600; done"]
+    port: 8080
+    env: {}
+    service: { enabled: false }
+    preStopSleepSeconds: 1
+    terminationGracePeriodSeconds: 5
+    readOnlyRootFilesystem: true
+    resources:
+      requests: { cpu: 10m, memory: 16Mi }
+      limits:   { cpu: 50m, memory: 32Mi }
+    autoscaling:
+      keda:
+        enabled: true
+        minReplicaCount: 0
+        maxReplicaCount: 5
+        pollingInterval: 5
+        cooldownPeriod: 30
+        triggers:
+          - type: redis
+            metadata:
+              # KEDA runs in the "keda" namespace, so it needs the fully-qualified Service name.
+              address: "pulse-redis.{{ .Release.Namespace }}.svc.cluster.local:6379"
+              listName: demo:jobs
+              listLength: "5"         # target: 5 waiting items per replica
+
+infra:
+  postgres:
+    storage: 1Gi
+    resources:
+      requests: { cpu: 50m, memory: 192Mi }
+      limits:   { cpu: 500m, memory: 384Mi }

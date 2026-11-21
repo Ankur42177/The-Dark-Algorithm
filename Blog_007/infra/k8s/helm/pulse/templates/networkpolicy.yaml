@@ -1,0 +1,22 @@
+{{- /*
+Optional NetworkPolicy (off by default): only pods that are part of Pulse may talk to Postgres and Redis.
+Without policies, every pod in the cluster can reach every other pod ("flat network").
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pulse-infra-only-from-pulse
+  labels:
+    {{- include "pulse.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: infrastructure
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: pulse
+{{- end }}

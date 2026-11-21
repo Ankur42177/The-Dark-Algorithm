@@ -102,14 +102,17 @@ public class NewsletterRepository {
     }
 
     /**
-     * → UNSUBSCRIBED. Also deletes the confirm token, so an old confirm link can't silently re-subscribe them.
+     * → UNSUBSCRIBED. Also deletes the confirm token, so an old confirm link can't silently re-subscribe them, and
+     * clears {@code confirm_sent_at}: otherwise "subscribe → confirm → unsubscribe → subscribe again" within the
+     * 10-minute cooldown answered 202 but sent nothing and left the row UNSUBSCRIBED (bug found in the Phase 7 review).
      * Returns the subscriber's status AFTER the call, or empty if the token is unknown.
      */
     public Optional<String> unsubscribe(String unsubscribeTokenHash) {
         int changed = jdbc.sql("""
                         UPDATE newsletter_subscribers
                            SET status = 'UNSUBSCRIBED', unsubscribed_at = now(),
-                               confirm_token_hash = NULL, confirm_expires_at = NULL
+                               confirm_token_hash = NULL, confirm_expires_at = NULL,
+                               confirm_sent_at = NULL   -- a re-subscribe right after leaving must get its confirm email
                          WHERE unsubscribe_token_hash = :h AND status <> 'UNSUBSCRIBED'""")
                 .param("h", unsubscribeTokenHash).update();
         if (changed > 0) {

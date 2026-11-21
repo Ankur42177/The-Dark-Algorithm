@@ -42,11 +42,18 @@ public class GatewayRoutes {
                         .path("/api/v1/auth/**")
                         .filters(f -> common(f).filters(limits.filter(RateLimitPolicy.PUBLIC)))
                         .uri(props.contentUri()))
-                // ---- public forms: newsletter (subscribe/confirm/unsubscribe) + contact ----------------
-                // Strict per-IP limit (5 / 10 min). POSTs only matter here, and they are never retried.
+                // ---- public forms that SEND email: newsletter subscribe + contact ----------------------
+                // Strict per-IP bucket (5 at once, then 1 per 2 min). POSTs, never retried.
                 .route("content-forms", r -> r
-                        .path("/api/v1/newsletter/**", "/api/v1/contact")
+                        .path("/api/v1/newsletter/subscribe", "/api/v1/contact")
                         .filters(f -> common(f).filters(limits.filter(RateLimitPolicy.FORMS)))
+                        .uri(props.contentUri()))
+                // ---- links clicked from an email: confirm + unsubscribe -------------------------------
+                // NOT in the forms bucket: they send nothing, need a 256-bit token anyway, and an unsubscribe must
+                // never be refused because a school or office NAT used up "forms" (anti-spam law; Phase 7 review).
+                .route("content-token-links", r -> r
+                        .path("/api/v1/newsletter/confirm", "/api/v1/newsletter/unsubscribe")
+                        .filters(f -> common(f).filters(limits.filter(RateLimitPolicy.PUBLIC)))
                         .uri(props.contentUri()))
                 // ---- admin APIs (JWT checked by SecurityConfig before we get here) -------------------
                 .route("content-admin", r -> r

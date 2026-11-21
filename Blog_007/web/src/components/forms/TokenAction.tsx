@@ -1,34 +1,53 @@
 "use client";
 /**
- * Shared by /newsletter/confirm and /newsletter/unsubscribe: reads ?token=… from the URL, POSTs it once on
- * load, and shows the result. A ref guards against React's dev-mode double effect (and the endpoints are
- * idempotent anyway: confirming twice or unsubscribing twice is harmless).
+ * Shared by /newsletter/confirm and /newsletter/unsubscribe: reads ?token=… from the URL and POSTs it ONLY when the
+ * reader presses the button.
+ *
+ * Why a button instead of POSTing on page load? Corporate mail-security products ("safe links" scanners) open
+ * every link in an email in a real browser, JavaScript included. An auto-POST would let a robot confirm a
+ * subscription someone else typed in (defeating double opt-in) or silently unsubscribe a real reader.
+ * Robots load pages; they don't press buttons. (Phase 7 security review.)
+ *
+ * The token is also removed from the address bar (history.replaceState) once read, so it doesn't linger in
+ * browser history or get copied along with the URL.
  */
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { postPublic } from "@/lib/publicApi";
 
-type Copy = { working: string; okTitle: string; okBody: string; failTitle: string };
-type State = { kind: "working" } | { kind: "ok" } | { kind: "error"; message: string };
+type Copy = { ask: string; button: string; working: string; okTitle: string; okBody: string; failTitle: string };
+type State = { kind: "ready" } | { kind: "working" } | { kind: "ok" } | { kind: "error"; message: string };
 
 export function TokenAction({ path, copy }: { path: string; copy: Copy }) {
-  const token = useSearchParams().get("token")?.trim() ?? "";
-  const [state, setState] = useState<State>(token ? { kind: "working" } : { kind: "error", message: "This link is missing its token. Try copying the whole link from the email." });
-  const sent = useRef(false);
+  const urlToken = useSearchParams().get("token")?.trim() ?? "";
+  const token = useRef(urlToken);
+  const [state, setState] = useState<State>(urlToken ? { kind: "ready" } : { kind: "error", message: "This link is missing its token. Try copying the whole link from the email." });
 
   useEffect(() => {
-    if (!token || sent.current) return;
-    sent.current = true;
-    postPublic<{ status: string }>(path, { token }).then((res) =>
-      setState(res.ok ? { kind: "ok" } : {
-        kind: "error",
-        message: res.status === 404 ? "This link has expired or was already used." : res.message,
-      }));
-  }, [path, token]);
+    if (urlToken && typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname);   // keep it in memory, not in the URL
+    }
+  }, [urlToken]);
+
+  async function act() {
+    if (state.kind !== "ready") return;                                    // one POST per click, no double submit
+    setState({ kind: "working" });
+    const res = await postPublic<{ status: string }>(path, { token: token.current });
+    setState(res.ok ? { kind: "ok" } : {
+      kind: "error",
+      message: res.status === 404 ? "This link has expired or was already used." : res.message,
+    });
+  }
 
   return (
     <div className="reveal mx-auto max-w-xl px-6 py-24 text-center" aria-live="polite">
+      {state.kind === "ready" && (
+        <>
+          <h1 className="font-display text-4xl font-medium tracking-tight text-ink">{copy.ask}</h1>
+          <button type="button" onClick={act} className="btn-pill mt-9">{copy.button} <span className="arrow">→</span></button>
+        </>
+      )}
       {state.kind === "working" && (
         <>
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-line border-t-[var(--color-coral)] motion-reduce:animate-none" aria-hidden="true" />

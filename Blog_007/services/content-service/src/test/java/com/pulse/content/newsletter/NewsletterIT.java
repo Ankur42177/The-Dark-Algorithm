@@ -146,7 +146,11 @@ class NewsletterIT extends IntegrationTestBase {
     @Test
     void invalidInputIsA400ProblemDetail() throws Exception {
         for (Map<String, String> body : List.of(Map.of("email", "not-an-email"), Map.of("email", ""),
-                Map.of("email", "a@b.co\r\nBcc: victim@x.com"), Map.of("email", unique("x"), "name", "line\nbreak"))) {
+                Map.of("email", "a@b.co\r\nBcc: victim@x.com"), Map.of("email", unique("x"), "name", "line\nbreak"),
+                // "address smuggling": JavaMail would deliver this to victim@example.com while our cooldown sees a
+                // different row per variant (a1<…>, a2<…>, …) → now rejected by the stricter EMAIL rule
+                Map.of("email", "a1<victim@example.com>"), Map.of("email", "\"x\"@example.com"),
+                Map.of("email", "a@b.co,c@d.co"))) {
             HttpResponse<String> res = post("/api/v1/newsletter/subscribe", body);
             assertThat(res.statusCode()).as(body.toString()).isEqualTo(400);
             assertThat(res.headers().firstValue("Content-Type").orElse("")).contains("application/problem+json");
@@ -190,6 +194,27 @@ class NewsletterIT extends IntegrationTestBase {
         mailer.clear();
         newsletter.sendMonthly(YearMonth.of(2041, 1));
         assertThat(mailer.sentTo(email)).isEmpty();
+    }
+
+    @Test
+    void resubscribingRightAfterUnsubscribingSendsANewConfirmEmail() throws Exception {
+        // Bug found in the Phase 7 review: confirm_sent_at survived the unsubscribe, so re-subscribing within the
+        // 10-minute cooldown answered 202 "pending" but sent nothing and left the row UNSUBSCRIBED.
+        String email = unique("comeback");
+        post("/api/v1/newsletter/subscribe", Map.of("email", email));
+        confirm(email);
+        String unsub = extract(UNSUB_LINK, mailer.sentTo(email).getLast().text());
+        assertThat(post("/api/v1/newsletter/unsubscribe", Map.of("token", unsub)).statusCode()).isEqualTo(200);
+        mailer.clear();
+
+        assertThat(post("/api/v1/newsletter/subscribe", Map.of("email", email)).statusCode()).isEqualTo(202);
+
+        assertThat(subscriber(email).get("status")).isEqualTo("PENDING");
+        assertThat(mailer.sentTo(email)).hasSize(1);
+        assertThat(mailer.sentTo(email).getFirst().subject()).isEqualTo("Confirm your Pulse subscription");
+        // ... and the cooldown applies again from here: an immediate second submit sends nothing
+        post("/api/v1/newsletter/subscribe", Map.of("email", email));
+        assertThat(mailer.sentTo(email)).hasSize(1);
     }
 
     // ------------------------------------------------------------------ monthly job

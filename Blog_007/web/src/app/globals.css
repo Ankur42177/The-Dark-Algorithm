@@ -911,5 +911,6 @@ sup.harvey-ref.is-pending { opacity: .55; }
   .harvey-panel { animation: harvey-sheet .38s cubic-bezier(.2, .8, .2, 1) both; }
 }
 @keyframes harvey-sheet { from { transform: translateY(100%); } }
-/* the chat panel is read for a long time: glass, but denser than the deck's cards */
-.harvey-panel.glass { background: linear-gradient(160deg, color-mix(in srgb, var(--glass-solid) 90%, transparent), color-mix(in srgb, var(--glass-solid) 78%, transparent)); }
+/* the chat panel is read for a long time: the glass tint sits on an OPAQUE card colour, so the busy hero deck
+   never shows through the text (backdrop blur isn't available everywhere, e.g. some Linux/older browsers). */
+.harvey-panel.glass { background: linear-gradient(var(--glass-solid), var(--glass-solid)), var(--card); }

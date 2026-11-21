@@ -1,0 +1,91 @@
+package com.pulse.assistant.config;
+
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+@Configuration
+public class AppConfig implements WebMvcConfigurer {
+
+    private final AssistantProperties props;
+
+    public AppConfig(AssistantProperties props) {
+        this.props = props;
+    }
+
+    /** HTTP client for content-service, with timeouts on EVERY call (a slow dependency must not hang a chat). */
+    @Bean
+    RestClient contentRestClient() {
+        HttpClient jdk = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(jdk);
+        factory.setReadTimeout(Duration.ofSeconds(3));
+        return RestClient.builder().baseUrl(props.contentServiceUrl()).requestFactory(factory).build();
+    }
+
+    /**
+     * CIRCUIT BREAKER around the LLM. If ≥ 50 % of the last 10 calls failed (or took > 15 s), the breaker
+     * OPENS: for 30 s we don't even try the model and answer in "search mode" instead. Then it lets a few
+     * trial calls through (HALF_OPEN) and closes again if they succeed.
+     */
+    @Bean
+    CircuitBreaker llmCircuitBreaker() {
+        return CircuitBreaker.of("llm", CircuitBreakerConfig.custom()
+                .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
+                .slidingWindowSize(10)
+                .minimumNumberOfCalls(3)
+                .failureRateThreshold(50)
+                .slowCallDurationThreshold(Duration.ofSeconds(15))
+                .slowCallRateThreshold(80)
+                .waitDurationInOpenState(Duration.ofSeconds(30))
+                .permittedNumberOfCallsInHalfOpenState(2)
+                .build());
+    }
+
+    /** Each chat runs on its own virtual thread: thousands of long-lived streams cost almost nothing. */
+    @Bean(destroyMethod = "close")
+    ExecutorService chatExecutor() {
+        return Executors.newVirtualThreadPerTaskExecutor();
+    }
+
+    /**
+     * CORS only for DIRECT browser calls (no gateway). Behind the api-gateway this stays OFF: the gateway already
+     * answered the CORS question, and a second, different allow-list here only rejected legitimate origins
+     * (403 "Invalid CORS request" for the :3100 dev server).
+     */
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        String[] origins = props.corsOrigins() == null ? new String[0]
+                : props.corsOrigins().stream().filter(o -> o != null && !o.isBlank()).toArray(String[]::new);
+        if (origins.length == 0) {
+            return;
+        }
+        registry.addMapping("/api/v1/assistant/**")
+                .allowedOrigins(origins)
+                .allowedMethods("POST")
+                .allowedHeaders("Content-Type")
+                .maxAge(3600);
+    }
+
+    @Bean
+    OpenAPI assistantOpenApi() {
+        return new OpenAPI().info(new Info()
+                .title("Pulse assistant-service API")
+                .version("v1")
+                .description("Harvey, Pulse's AI guide: streaming chat with tools, RAG search and graceful fallback. "
+                        + "Designed and developed by Ankur Kumar. © 2026 Ravenclaw_007 LLC.")
+                .contact(new Contact().name("Ankur Kumar · Ravenclaw_007 LLC").url("https://github.com/Ankur42177/The-Dark-Algorithm")));
+    }
+}

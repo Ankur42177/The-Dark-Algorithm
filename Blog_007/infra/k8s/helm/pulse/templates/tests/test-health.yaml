@@ -1,0 +1,32 @@
+{{- /*
+`helm test pulse -n pulse` runs this pod once: it calls each Spring service's health endpoint through
+its -management Service. Exit code 0 = test passed.
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pulse-test-health
+  labels:
+    {{- include "pulse.commonLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+  containers:
+    - name: check
+      image: {{ .Values.testImage | quote }}
+      command: ["sh", "-c"]
+      args:
+        - |
+          set -e
+          {{- range $name, $svc := .Values.services }}
+          {{- if and $svc.enabled $svc.managementPort }}
+          echo "checking {{ $name }}"
+          wget -qO- http://{{ $name }}-management:{{ $svc.managementPort }}/actuator/health | grep -q '"UP"'
+          {{- end }}
+          {{- end }}
+          echo "all healthy"

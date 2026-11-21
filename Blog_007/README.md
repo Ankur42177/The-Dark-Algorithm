@@ -10,7 +10,8 @@ Master plan: [`../PLAN.md`](../PLAN.md) · Learning notes: [`../Learning_project
 | 0 | Foundations: layout, Docker Compose `core`, ADRs, Claude Code setup | ✅ done |
 | 1 | content-service: posts on Postgres, keyset pagination, Problem Details, OpenAPI, tests | ✅ done |
 | 2 | Next.js public website: ISR + tag revalidation + warming, Lighthouse 100 | ✅ done |
-| 3–11 | Redis, admin auth, gateway, Kafka, RabbitMQ ingestion, AI assistant, observability, Kubernetes, ship | planned |
+| 3 | Redis: cache-aside, single-flight, fail-open, views write-behind, trending | ✅ done |
+| 4–11 | admin auth, gateway, Kafka, RabbitMQ ingestion, AI assistant, observability, Kubernetes, ship | in progress |
 
 ## Run it (from this folder)
 

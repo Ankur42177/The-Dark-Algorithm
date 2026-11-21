@@ -2,19 +2,14 @@ package com.pulse.content.post;
 
 import com.pulse.content.post.PostDtos.CursorPage;
 import com.pulse.content.post.PostDtos.PostSummary;
+import com.pulse.content.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,20 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>Name ends in "IT" so Maven's failsafe plugin runs it during {@code mvn verify}.
  * {@code disabledWithoutDocker = true}: skipped (not failed) when Docker isn't running.
  */
-@Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT) // real Tomcat on a random free port
-@ActiveProfiles("dev") // load the sample posts from db/seed
-class PostApiIT {
-
-    /**
-     * {@code @Container static} = one Postgres container for all tests in this class.
-     * {@code @ServiceConnection} = Spring Boot reads the container's random port/user/password and
-     * points spring.datasource.* at it automatically. No URLs to copy by hand.
-     */
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:0.8.7-pg18")
-            .withDatabaseName("content_db");
+class PostApiIT extends IntegrationTestBase {
 
     @Autowired
     PostService postService;

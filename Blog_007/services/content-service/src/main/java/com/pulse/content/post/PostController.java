@@ -11,7 +11,11 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
+import com.pulse.content.post.PostDtos.TrendingItem;
+import com.pulse.content.views.ViewService;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,9 +42,11 @@ public class PostController {
     private static final CacheControl POST_CACHE = CacheControl.maxAge(Duration.ofMinutes(5)).cachePublic();
 
     private final PostService postService;
+    private final ViewService viewService;
 
-    public PostController(PostService postService) {
+    public PostController(PostService postService, ViewService viewService) {
         this.postService = postService;
+        this.viewService = viewService;
     }
 
     /**
@@ -75,5 +81,27 @@ public class PostController {
     @Operation(summary = "List sections with their number of published posts")
     public ResponseEntity<List<SectionCount>> sections() {
         return ResponseEntity.ok().cacheControl(LIST_CACHE).body(postService.sections());
+    }
+
+    /**
+     * POST /api/v1/posts/{slug}/view — sent by navigator.sendBeacon from the article page (Phase 2).
+     * 202 Accepted = "noted, processed asynchronously". No body, never cached.
+     */
+    @PostMapping("/posts/{slug}/view")
+    @Operation(summary = "Count one view (fire-and-forget)")
+    public ResponseEntity<Void> view(@PathVariable @Pattern(regexp = "[a-z0-9-]{1,160}") String slug) {
+        viewService.record(slug);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+    }
+
+    /** GET /api/v1/trending?section=TECH&limit=5 — top posts by recent views (Redis sorted set). */
+    @GetMapping("/trending")
+    @Operation(summary = "Trending posts (by recent views)")
+    public ResponseEntity<List<TrendingItem>> trending(
+            @RequestParam(required = false) Section section,
+            @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic())
+                .body(viewService.trending(section, limit));
     }
 }

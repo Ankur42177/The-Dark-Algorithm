@@ -76,6 +76,10 @@ public final class PostDtos {
     public record CursorPage<T>(List<T> items, String nextCursor) {
     }
 
+    /** One entry of GET /api/v1/trending (Phase 3). {@code views} = decayed score from Redis. */
+    public record TrendingItem(String slug, String title, Section section, long views) {
+    }
+
     /** Section with how many published posts it has: GET /api/v1/sections */
     public record SectionCount(Section section, long posts) {
     }

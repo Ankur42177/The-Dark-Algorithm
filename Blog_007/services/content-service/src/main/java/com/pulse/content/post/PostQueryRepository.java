@@ -104,6 +104,38 @@ public class PostQueryRepository {
                 .list();
     }
 
+    /** Titles for a set of slugs (trending strip). One query with = ANY(array), not one per slug. */
+    public List<PostDtos.TrendingItem> findTrendingInfo(List<String> slugs) {
+        if (slugs.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.sql("""
+                        SELECT slug, title, section
+                          FROM posts
+                         WHERE status = 'PUBLISHED' AND slug = ANY(:slugs)
+                        """)
+                .param("slugs", slugs.toArray(String[]::new))
+                .query((rs, n) -> new PostDtos.TrendingItem(
+                        rs.getString("slug"), rs.getString("title"), Section.valueOf(rs.getString("section")), 0))
+                .list();
+    }
+
+    /**
+     * Write-behind target: add {@code views} to today's row for this post (UPSERT).
+     * ON CONFLICT = "if the (post_id, day) row already exists, add to it instead of failing".
+     * @return 1 if the post exists, 0 if it was deleted meanwhile
+     */
+    public int addDailyViews(String slug, long views) {
+        return jdbc.sql("""
+                        INSERT INTO post_daily_views (post_id, day, views)
+                        SELECT id, (now() AT TIME ZONE 'UTC')::date, :views FROM posts WHERE slug = :slug
+                        ON CONFLICT (post_id, day) DO UPDATE SET views = post_daily_views.views + EXCLUDED.views
+                        """)
+                .param("views", views)
+                .param("slug", slug)
+                .update();
+    }
+
     /** RowMapper: turns ONE row of the ResultSet into ONE Java object. */
     private static PostSummary mapSummary(ResultSet rs, int rowNum) throws SQLException {
         return new PostSummary(

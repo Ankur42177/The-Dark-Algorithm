@@ -48,6 +48,13 @@ spring:
   flyway:
     locations: classpath:db/migration
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 250ms                 # a cache that answers slowly is worse than no cache
+      connect-timeout: 250ms
+
   mvc:
     problemdetails:
       enabled: true                  # RFC 9457 JSON errors for Spring's built-in exceptions
@@ -67,13 +74,17 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics   # metrics: /actuator/metrics/pulse.cache.requests
   endpoint:
     health:
       probes:
         enabled: true                # /actuator/health/liveness and /readiness for Kubernetes
 
 pulse:
+  views:
+    flush-interval: 60s              # write-behind: Redis counters -> Postgres every minute
+  trending:
+    decay-cron: "0 0 * * * *"        # every hour, on the hour (sec min hour day month weekday)
   cors:
     allowed-origins: ${PULSE_CORS_ORIGINS:http://localhost:3000}
 

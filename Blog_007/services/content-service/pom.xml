@@ -51,6 +51,31 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Phase 4: Spring Security (authentication, authorization, CSRF) ... -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <!-- ... + OAuth2 Resource Server: validates JWTs (uses the Nimbus JOSE library, which we also use to SIGN them). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <!-- Phase 4: Markdown -> HTML (CommonMark compliant) + GitHub-style tables. -->
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-ext-tables</artifactId>
+        </dependency>
+        <!-- Phase 4: removes dangerous HTML (scripts, event handlers, javascript: URLs) => no stored XSS. -->
+        <dependency>
+            <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+            <artifactId>owasp-java-html-sanitizer</artifactId>
+        </dependency>
+
         <!-- Bean Validation (Hibernate Validator): @Min, @Max, @NotBlank ... on inputs. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -85,6 +110,11 @@
             <scope>test</scope>
         </dependency>
         <!-- Testcontainers: start a REAL PostgreSQL in Docker for integration tests. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>

@@ -1,5 +1,6 @@
 package com.pulse.content.common;
 
+import com.pulse.content.admin.AdminPostService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -45,6 +46,22 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         problem.setType(URI.create(PROBLEM_BASE + "invalid-cursor"));
         problem.setTitle("Invalid cursor");
+        return problem;
+    }
+
+    @ExceptionHandler(AdminPostService.NotFound.class)
+    public ProblemDetail handleAdminNotFound(AdminPostService.NotFound ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Post not found");
+        return problem;
+    }
+
+    /** 409 Conflict: optimistic-lock failure, taken slug, invalid status transition, idempotency in progress. */
+    @ExceptionHandler(AdminPostService.Conflict.class)
+    public ProblemDetail handleConflict(AdminPostService.Conflict ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setType(URI.create(PROBLEM_BASE + "conflict"));
+        problem.setTitle("Conflict");
         return problem;
     }
 }

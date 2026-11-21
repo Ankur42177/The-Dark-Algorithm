@@ -81,6 +81,18 @@ management:
         enabled: true                # /actuator/health/liveness and /readiness for Kubernetes
 
 pulse:
+  auth:
+    admin-username: ${ADMIN_USERNAME:ankur}
+    admin-display-name: ${ADMIN_DISPLAY_NAME:Ankur Kumar}
+    admin-password-hash: ${ADMIN_PASSWORD_HASH:}      # from scripts/hash-password.sh; empty = login disabled
+    jwt-private-key: ${PULSE_JWT_PRIVATE_KEY:}        # from scripts/gen-jwt-keys.sh; empty = temporary key (dev)
+    jwt-public-key: ${PULSE_JWT_PUBLIC_KEY:}
+    issuer: ${PULSE_JWT_ISSUER:https://pulse.local}
+    access-ttl: 15m
+    refresh-ttl: 7d
+    cookie-secure: ${PULSE_COOKIE_SECURE:true}
+  scheduler:
+    publish-interval: 30s
   views:
     flush-interval: 60s              # write-behind: Redis counters -> Postgres every minute
   trending:

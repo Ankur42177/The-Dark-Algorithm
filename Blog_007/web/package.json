@@ -2,6 +2,8 @@
   "name": "pulse-web",
   "version": "0.1.0",
   "private": true,
+  "description": "Pulse website. Designed and developed by Ankur Kumar. Owned by Ravenclaw_007 LLC.",
+  "author": "Ankur Kumar (Ravenclaw_007 LLC)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

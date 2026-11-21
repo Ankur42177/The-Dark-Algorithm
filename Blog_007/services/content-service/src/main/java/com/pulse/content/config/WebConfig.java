@@ -1,40 +1,16 @@
 package com.pulse.content.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.filter.ShallowEtagHeaderFilter;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * {@code @Configuration} classes declare beans with {@code @Bean} methods: "Spring, call this method
  * once at startup and keep the returned object in your container".
  */
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
-
-    /** Comma-separated list, e.g. "http://localhost:3000". Empty = no cross-origin browser calls allowed. */
-    @Value("${pulse.cors.allowed-origins:}")
-    private String[] allowedOrigins;
-
-    /**
-     * CORS (Cross-Origin Resource Sharing). Browsers block JavaScript on http://localhost:3000 from
-     * reading responses from http://localhost:8081 (a different "origin") unless the server says it's OK.
-     * The website's "Load more" button needs this. From Phase 5 the api-gateway owns CORS instead.
-     * GET for reads, POST only for the fire-and-forget view beacon (Phase 3).
-     */
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        if (allowedOrigins.length == 0) {
-            return;
-        }
-        registry.addMapping("/api/v1/**")
-                .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "POST")
-                .maxAge(3600);
-    }
+public class WebConfig {
 
     /**
      * ETags for the public API.

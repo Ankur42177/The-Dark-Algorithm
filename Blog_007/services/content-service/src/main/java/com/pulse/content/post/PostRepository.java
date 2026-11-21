@@ -26,4 +26,10 @@ public interface PostRepository extends JpaRepository<Post, UUID> {
      */
     @EntityGraph(attributePaths = "tags")
     Optional<Post> findBySlugAndStatus(String slug, PostStatus status);
+
+    /** Admin: load any post (any status) with its tags. */
+    @EntityGraph(attributePaths = "tags")
+    Optional<Post> findWithTagsById(UUID id);
+
+    boolean existsBySlug(String slug);
 }

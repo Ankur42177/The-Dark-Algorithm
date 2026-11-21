@@ -11,6 +11,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
@@ -98,6 +100,72 @@ public class Post {
 
     protected Post() {
         // for JPA
+    }
+
+    // ------------------------------------------------------------------ behaviour (Phase 4)
+    // Instead of 15 setters, the entity exposes INTENTIONS. Each method enforces its own rules,
+    // so an invalid state (e.g. PUBLISHED without a date) can't be created from anywhere.
+
+    /** Create a new draft. */
+    public static Post draft(String slug, String title, String summary, Section section, String coverImageUrl,
+                             String bodyMd, String bodyHtml, int readingMinutes, Set<Tag> tags) {
+        Post p = new Post();
+        p.slug = slug;
+        p.status = PostStatus.DRAFT;
+        p.edit(title, summary, section, coverImageUrl, bodyMd, bodyHtml, readingMinutes, tags);
+        return p;
+    }
+
+    public void edit(String title, String summary, Section section, String coverImageUrl,
+                     String bodyMd, String bodyHtml, int readingMinutes, Set<Tag> tags) {
+        this.title = title;
+        this.summary = summary;
+        this.section = section;
+        this.coverImageUrl = coverImageUrl;
+        this.bodyMd = bodyMd;
+        this.bodyHtml = bodyHtml;
+        this.readingMinutes = readingMinutes;
+        this.tags.clear();
+        this.tags.addAll(tags);
+    }
+
+    public void publish(Instant now) {
+        if (status == PostStatus.PUBLISHED) {
+            throw new IllegalStateException("Post is already published");
+        }
+        // A manual publish is "now". (Scheduled posts are published by ScheduledPublisher, which keeps their date.)
+        this.status = PostStatus.PUBLISHED;
+        this.publishedAt = now;
+    }
+
+    public void schedule(Instant at, Instant now) {
+        if (status == PostStatus.PUBLISHED) {
+            throw new IllegalStateException("Unpublish before scheduling");
+        }
+        if (!at.isAfter(now)) {
+            throw new IllegalArgumentException("Schedule time must be in the future");
+        }
+        this.status = PostStatus.SCHEDULED;
+        this.publishedAt = at;
+    }
+
+    public void unpublish() {
+        if (status != PostStatus.PUBLISHED && status != PostStatus.SCHEDULED) {
+            throw new IllegalStateException("Only published or scheduled posts can be unpublished");
+        }
+        this.status = PostStatus.UNPUBLISHED;
+    }
+
+    /** JPA lifecycle callbacks: Hibernate calls these right before INSERT / UPDATE. */
+    @PrePersist
+    void onCreate() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
     }
 
     public UUID getId() { return id; }

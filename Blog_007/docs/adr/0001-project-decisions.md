@@ -12,7 +12,7 @@ cost of changing is noted.
 | 1 | New repo or evolve `footballhub`? | **New code base in `Blog_007/`** (git repo at `Microservices_Scale/`, local only — no GitHub remote yet) | Low: add a remote and push |
 | 2 | Project name | **Keep "Pulse"** (`com.pulse` packages) | Medium: package rename |
 | 3 | Build tool | **Maven multi-module** + Maven Wrapper (most common in Spring jobs; already installed) | High after several services exist |
-| 4 | LLM | **Local Ollama only** for now; Claude via API is an optional prod profile in Phase 8/11 | Low: config only |
+| 4 | LLM | **Local Ollama only** for now; a hosted LLM API is an optional prod profile in Phase 8/11 | Low: config only |
 | 5 | Deployment target | **Stay local** until Phase 11 | None |
 | 6 | Domain | **None yet** | None |
 

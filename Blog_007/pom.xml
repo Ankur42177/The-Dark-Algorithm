@@ -33,6 +33,22 @@
     <packaging>pom</packaging>
     <name>Pulse :: parent</name>
     <description>Learning-first microservices blog platform (Tech, Football, AI)</description>
+    <url>https://github.com/Ankur42177/The-Dark-Algorithm</url>
+
+    <!-- Designed and developed by Ankur Kumar. Owned by Ravenclaw_007 LLC. -->
+    <organization>
+        <name>Ravenclaw_007 LLC</name>
+    </organization>
+    <developers>
+        <developer>
+            <name>Ankur Kumar</name>
+            <organization>Ravenclaw_007 LLC</organization>
+            <roles>
+                <role>Designer</role>
+                <role>Developer</role>
+            </roles>
+        </developer>
+    </developers>
 
     <!--
       Child modules. We add one per phase as we build them:
@@ -54,6 +70,8 @@
         <springdoc.version>3.1.1</springdoc.version>          <!-- built against Boot 4.1 -->
         <spring-cloud.version>2025.1.5</spring-cloud.version> <!-- used from Phase 5 -->
         <spring-ai.version>2.0.3</spring-ai.version>          <!-- used from Phase 8 -->
+        <flexmark.version>0.64.8</flexmark.version>            <!-- Markdown -> HTML (Phase 4) -->
+        <owasp-sanitizer.version>20261110.1</owasp-sanitizer.version> <!-- HTML sanitizer (Phase 4) -->
     </properties>
 
     <!--
@@ -62,6 +80,21 @@
     -->
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.vladsch.flexmark</groupId>
+                <artifactId>flexmark</artifactId>
+                <version>${flexmark.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vladsch.flexmark</groupId>
+                <artifactId>flexmark-ext-tables</artifactId>
+                <version>${flexmark.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
+                <artifactId>owasp-java-html-sanitizer</artifactId>
+                <version>${owasp-sanitizer.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>

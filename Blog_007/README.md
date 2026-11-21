@@ -7,7 +7,7 @@ Master plan: [`../PLAN.md`](../PLAN.md) · Learning notes: [`../Learning_project
 
 | Phase | What | State |
 |---|---|---|
-| 0 | Foundations: layout, Docker Compose `core`, ADRs, Claude Code setup | ✅ done |
+| 0 | Foundations: layout, Docker Compose `core`, ADRs, developer tooling | ✅ done |
 | 1 | content-service: posts on Postgres, keyset pagination, Problem Details, OpenAPI, tests | ✅ done |
 | 2 | Next.js public website: ISR + tag revalidation + warming, Lighthouse 100 | ✅ done |
 | 3 | Redis: cache-aside, single-flight, fail-open, views write-behind, trending | ✅ done |
@@ -59,3 +59,7 @@ Blog_007/
 ├── load-tests/k6/
 └── scripts/                     load-100k-posts.sql (Phase 1 break-it)
 ```
+
+---
+
+**Designed and developed by Ankur Kumar.** © 2026 Ravenclaw_007 LLC. All rights reserved.

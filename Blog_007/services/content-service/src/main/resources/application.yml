@@ -73,6 +73,10 @@ management:
       probes:
         enabled: true                # /actuator/health/liveness and /readiness for Kubernetes
 
+pulse:
+  cors:
+    allowed-origins: ${PULSE_CORS_ORIGINS:http://localhost:3000}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

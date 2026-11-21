@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ingestion-service: fetches public RSS/Atom feeds of well-known bloggers (metadata only), on a schedule,
+  through a RabbitMQ work queue, and announces new articles on Kafka.
+  Designed and developed by Ankur Kumar · © 2026 Ravenclaw_007 LLC
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.pulse</groupId>
+        <artifactId>pulse-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+    <artifactId>ingestion-service</artifactId>
+    <name>Pulse :: ingestion-service</name>
+    <description>Feed ingestion with RabbitMQ work queues. Designed and developed by Ankur Kumar · © 2026 Ravenclaw_007 LLC</description>
+
+    <properties>
+        <rome.version>2.1.0</rome.version>
+        <shedlock.version>7.11.0</shedlock.version>
+        <wiremock.version>3.13.2</wiremock.version>
+    </properties>
+
+    <dependencies>
+        <dependency><groupId>com.pulse</groupId><artifactId>pulse-events</artifactId></dependency>
+        <!-- HTTP API (admin endpoints) -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId></dependency>
+        <!-- JdbcClient + HikariCP (no ORM needed: a few simple tables) -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-flyway</artifactId></dependency>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-database-postgresql</artifactId></dependency>
+        <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
+        <!-- RabbitMQ: the feed-fetch work queue (Spring AMQP) -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-amqp</artifactId></dependency>
+        <!-- Kafka: announce ArticleIngested events -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-kafka</artifactId></dependency>
+        <!-- Redis: dedupe keys + robots.txt cache -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis</artifactId></dependency>
+        <!-- Admin API security: validate content-service's JWTs via its JWKS endpoint -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-security</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-oauth2-resource-server</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+        <dependency><groupId>org.springdoc</groupId><artifactId>springdoc-openapi-starter-webmvc-ui</artifactId></dependency>
+        <!-- Apache HttpClient 5: lets us plug in a DNS resolver that refuses private IPs (SSRF defence) -->
+        <dependency><groupId>org.apache.httpcomponents.client5</groupId><artifactId>httpclient5</artifactId></dependency>
+        <!-- Rome: RSS/Atom parser (DOCTYPEs disallowed by default => XXE-safe) -->
+        <dependency><groupId>com.rometools</groupId><artifactId>rome</artifactId><version>${rome.version}</version></dependency>
+        <!-- ShedLock: "run this @Scheduled job on only ONE replica" via a row lock in Postgres -->
+        <dependency><groupId>net.javacrumbs.shedlock</groupId><artifactId>shedlock-spring</artifactId><version>${shedlock.version}</version></dependency>
+        <dependency><groupId>net.javacrumbs.shedlock</groupId><artifactId>shedlock-provider-jdbc-template</artifactId><version>${shedlock.version}</version></dependency>
+
+        <!-- tests -->
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-testcontainers</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.testcontainers</groupId><artifactId>testcontainers-junit-jupiter</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.testcontainers</groupId><artifactId>testcontainers-postgresql</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.testcontainers</groupId><artifactId>testcontainers-rabbitmq</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.testcontainers</groupId><artifactId>testcontainers-kafka</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.awaitility</groupId><artifactId>awaitility</artifactId><scope>test</scope></dependency>
+        <!-- WireMock: a fake feed server that can be slow, broken, huge or malicious on demand -->
+        <dependency><groupId>org.wiremock</groupId><artifactId>wiremock-standalone</artifactId><version>${wiremock.version}</version><scope>test</scope></dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <executions><execution><goals><goal>integration-test</goal><goal>verify</goal></goals></execution></executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -61,6 +61,7 @@
     <modules>
         <module>libs/events</module>
         <module>services/content-service</module>
+        <module>services/ingestion-service</module>
         <module>services/api-gateway</module>
     </modules>
 
@@ -86,6 +87,20 @@
                 <groupId>com.pulse</groupId>
                 <artifactId>pulse-events</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <!-- Phase 8: Spring AI (ChatClient, tool calling, Ollama, embeddings). BOM = all Spring AI versions aligned. -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Phase 8: circuit breaker around the LLM. -->
+            <dependency>
+                <groupId>io.github.resilience4j</groupId>
+                <artifactId>resilience4j-circuitbreaker</artifactId>
+                <version>2.4.0</version>
             </dependency>
             <dependency>
                 <groupId>com.vladsch.flexmark</groupId>

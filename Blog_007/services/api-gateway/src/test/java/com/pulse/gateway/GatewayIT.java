@@ -145,6 +145,38 @@ class GatewayIT {
         assertThat(send("GET", "/api/v1/posts", Map.of(), null).statusCode()).isEqualTo(200);
     }
 
+    @Test
+    void publicFormsShareAStrictFivePerTenMinutesBucket() throws Exception {
+        Map<String, String> json = Map.of("Content-Type", "application/json");
+        // newsletter AND contact count against the same "forms" bucket for this IP
+        for (String path : java.util.List.of("/api/v1/newsletter/subscribe", "/api/v1/newsletter/confirm",
+                "/api/v1/contact", "/api/v1/newsletter/unsubscribe", "/api/v1/contact")) {
+            assertThat(send("POST", path, json, "{}").statusCode()).as(path).isEqualTo(200);
+        }
+        assertThat(RECEIVED).containsKeys("/api/v1/newsletter/subscribe", "/api/v1/contact");   // routed to content-service
+
+        HttpResponse<String> sixth = send("POST", "/api/v1/newsletter/subscribe", json, "{}");
+        assertThat(sixth.statusCode()).isEqualTo(429);
+        assertThat(sixth.headers().firstValue("Retry-After")).contains("120");
+        assertThat(sixth.body()).contains("forms");
+        // public reads are a different bucket
+        assertThat(send("GET", "/api/v1/posts", Map.of(), null).statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void adminNewsletterAndContactNeedAnAdminTokenAndRouteToContentService() throws Exception {
+        assertThat(send("GET", "/api/v1/admin/newsletter", Map.of(), null).statusCode()).isEqualTo(401);
+        assertThat(send("GET", "/api/v1/admin/contact", Map.of(), null).statusCode()).isEqualTo(401);
+
+        Map<String, String> admin = Map.of("Authorization", "Bearer " + token(List.of("ADMIN"), KEY));
+        assertThat(send("GET", "/api/v1/admin/newsletter", admin, null).statusCode()).isEqualTo(200);
+        assertThat(send("POST", "/api/v1/admin/newsletter/send-monthly", admin, "").statusCode()).isEqualTo(200);
+        assertThat(send("GET", "/api/v1/admin/contact", admin, null).statusCode()).isEqualTo(200);
+        assertThat(send("POST", "/api/v1/admin/contact/abc/handled", admin, "").statusCode()).isEqualTo(200);
+        assertThat(RECEIVED).containsKeys("/api/v1/admin/newsletter", "/api/v1/admin/newsletter/send-monthly",
+                "/api/v1/admin/contact", "/api/v1/admin/contact/abc/handled");
+    }
+
     // ------------------------------------------------------------------ JWT at the edge
 
     @Test

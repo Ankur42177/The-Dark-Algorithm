@@ -87,6 +87,13 @@
             <artifactId>spring-boot-starter-kafka</artifactId>
         </dependency>
 
+        <!-- Newsletter + contact form: JavaMailSender (Jakarta Mail). Only ACTIVE when spring.mail.host is set;
+             otherwise emails are logged (see com.pulse.content.mail.MailConfig). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Bean Validation (Hibernate Validator): @Min, @Max, @NotBlank ... on inputs. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

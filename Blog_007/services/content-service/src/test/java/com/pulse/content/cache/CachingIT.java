@@ -121,9 +121,11 @@ class CachingIT extends IntegrationTestBase {
         for (int i = 0; i < 7; i++) viewService.record("rag-in-one-picture");
         viewService.record("arsenal-pressing-numbers");
 
-        List<TrendingItem> ai = viewService.trending(Section.AI, 5);
-        assertThat(ai).extracting(TrendingItem::slug).containsExactly("rag-in-one-picture", "what-is-an-ai-agent");
-        assertThat(ai.getFirst().views()).isEqualTo(7);
+        // both posts were in the AI section before V6 merged it into TECH
+        List<TrendingItem> tech = viewService.trending(Section.TECH, 5);
+        assertThat(tech).extracting(TrendingItem::slug).containsExactly("rag-in-one-picture", "what-is-an-ai-agent");
+        assertThat(tech.getFirst().views()).isEqualTo(7);
+        assertThat(viewService.trending(Section.FOOTBALL, 5)).extracting(TrendingItem::slug).containsExactly("arsenal-pressing-numbers");
         assertThat(viewService.trending(null, 5)).hasSize(3);
     }
 

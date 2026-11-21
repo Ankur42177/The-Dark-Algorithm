@@ -89,7 +89,8 @@ public class AdminPostService {
         if (posts.existsBySlug(slug)) {
             throw new Conflict("Slug '" + slug + "' is already used");
         }
-        Post p = Post.draft(slug, req.title(), req.summary(), req.section(), req.coverImageUrl(),
+        Post p = Post.draft(slug, req.title(), req.summary(), req.section().canonical(),   // AI → TECH (V6)
+                req.coverImageUrl(),
                 req.bodyMd(), markdown.toSafeHtml(req.bodyMd()), MarkdownRenderer.readingMinutes(req.bodyMd()), resolveTags(req.tags()));
         try {
             return AdminPostView.from(posts.saveAndFlush(p));
@@ -109,7 +110,7 @@ public class AdminPostService {
             throw new Conflict("This post was changed by someone else (version " + p.getVersion()
                     + ", you had " + req.version() + "). Reload and re-apply your edit.");
         }
-        p.edit(req.title(), req.summary(), req.section(), req.coverImageUrl(), req.bodyMd(),
+        p.edit(req.title(), req.summary(), req.section().canonical(), req.coverImageUrl(), req.bodyMd(),
                 markdown.toSafeHtml(req.bodyMd()), MarkdownRenderer.readingMinutes(req.bodyMd()), resolveTags(req.tags()));
         try {
             posts.saveAndFlush(p);          // UPDATE … WHERE id = ? AND version = ?  (Hibernate adds the version check)

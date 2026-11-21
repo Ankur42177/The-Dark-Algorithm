@@ -12,14 +12,18 @@ import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter;
  *   chat       10/min    : rate 1/s, burst 60,     cost 6    → 10 at once, then 1 per 6 seconds
  *   chat-day   100/day   : rate 1/s, burst 86400,  cost 864  → 100 per day
  *   admin      300/min   : rate 5/s, burst 300,    cost 1
+ *   forms      5/10 min  : rate 1/s, burst 600,    cost 120  → 5 at once, then 1 per 2 minutes
  * </pre>
+ * FORMS protects the public newsletter + contact forms: a human submits them once or twice; a script that
+ * submits hundreds is either spamming the owner's inbox or using our confirm email to spam someone else.
  */
 public enum RateLimitPolicy {
     PUBLIC(1, 60, 1),
     LOGIN(1, 900, 180),
     CHAT_MINUTE(1, 60, 6),
     CHAT_DAY(1, 86_400, 864),
-    ADMIN(5, 300, 1);
+    ADMIN(5, 300, 1),
+    FORMS(1, 600, 120);
 
     final int replenishRate;
     final long burstCapacity;

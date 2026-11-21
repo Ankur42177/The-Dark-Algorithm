@@ -38,7 +38,7 @@ public class InternalPostController {
     public List<PostSummary> recent(@RequestParam(required = false) Section section,
                                     @RequestParam(defaultValue = "30") @Min(1) @Max(3650) int sinceDays,
                                     @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit) {
-        return postService.recent(section, sinceDays, limit);
+        return postService.recent(Section.canonical(section), sinceDays, limit);   // AI → TECH (V6)
     }
 
     /** GET /internal/v1/posts/{slug} */

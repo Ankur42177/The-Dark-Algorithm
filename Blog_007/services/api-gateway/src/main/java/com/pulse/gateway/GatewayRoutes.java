@@ -42,9 +42,17 @@ public class GatewayRoutes {
                         .path("/api/v1/auth/**")
                         .filters(f -> common(f).filters(limits.filter(RateLimitPolicy.PUBLIC)))
                         .uri(props.contentUri()))
+                // ---- public forms: newsletter (subscribe/confirm/unsubscribe) + contact ----------------
+                // Strict per-IP limit (5 / 10 min). POSTs only matter here, and they are never retried.
+                .route("content-forms", r -> r
+                        .path("/api/v1/newsletter/**", "/api/v1/contact")
+                        .filters(f -> common(f).filters(limits.filter(RateLimitPolicy.FORMS)))
+                        .uri(props.contentUri()))
                 // ---- admin APIs (JWT checked by SecurityConfig before we get here) -------------------
                 .route("content-admin", r -> r
-                        .path("/api/v1/admin/posts/**", "/api/v1/admin/posts", "/api/v1/admin/preview")
+                        .path("/api/v1/admin/posts/**", "/api/v1/admin/posts", "/api/v1/admin/preview",
+                                "/api/v1/admin/newsletter/**", "/api/v1/admin/newsletter",
+                                "/api/v1/admin/contact/**", "/api/v1/admin/contact")
                         .filters(f -> common(f).filters(limits.filter(RateLimitPolicy.ADMIN)))
                         .uri(props.contentUri()))
                 .route("ingestion-admin", r -> r

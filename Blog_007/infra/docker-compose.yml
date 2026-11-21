@@ -8,6 +8,7 @@
 #   ai   -> Ollama                                    (added in Phase 8)
 #   obs  -> Prometheus, Grafana, Jaeger, OTel         (added in Phase 9)
 #   apps -> all Spring services + web as containers   (added later)
+#   mail -> Mailpit: fake SMTP server + web inbox     (newsletter / contact form)
 #
 # Run from the Blog_007 folder:
 #   docker compose -f infra/docker-compose.yml --env-file .env --profile core up -d
@@ -133,6 +134,30 @@ services:
       interval: 10s
       timeout: 10s
       retries: 12
+    restart: unless-stopped
+
+  mailpit:
+    # A FAKE mail server for development: it accepts every email over SMTP and shows it in a web inbox
+    # instead of delivering it. Lets you click the newsletter confirm/unsubscribe links for real without
+    # spamming anyone. Optional: without it content-service just LOGS emails (no SPRING_MAIL_HOST set).
+    # To use it: start this profile, then set SPRING_MAIL_HOST=localhost (and SPRING_MAIL_PORT=1025) in .env
+    # and restart content-service.
+    #   docker compose -f infra/docker-compose.yml --env-file .env --profile mail up -d
+    image: axllent/mailpit:v1.33.1          # pinned: never "latest" (reproducible builds)
+    profiles: ["mail"]
+    container_name: pulse-mailpit
+    ports:
+      - "1025:1025"                       # SMTP (content-service sends here)
+      - "8025:8025"                       # web inbox (you): http://localhost:8025
+    environment:
+      MP_MAX_MESSAGES: 500                # keep the newest 500 emails, delete older ones
+      MP_SMTP_AUTH_ACCEPT_ANY: 1          # dev only: accept any SMTP login
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1      # dev only: allow login without TLS
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     restart: unless-stopped
 
 volumes:

@@ -64,7 +64,7 @@ public class PostController {
             @RequestParam(required = false) @Pattern(regexp = "[A-Za-z0-9_-]{1,200}") String cursor,
             @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit) {
 
-        CursorPage<PostSummary> page = postService.listPublished(section, tag, cursor, limit);
+        CursorPage<PostSummary> page = postService.listPublished(Section.canonical(section), tag, cursor, limit);
         return ResponseEntity.ok().cacheControl(LIST_CACHE).body(page);
     }
 
@@ -101,7 +101,7 @@ public class PostController {
             @RequestParam @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 200) String q,
             @RequestParam(required = false) Section section,
             @RequestParam(defaultValue = "10") @Min(1) @Max(25) int limit) {
-        return ResponseEntity.ok().cacheControl(LIST_CACHE).body(postService.search(q, section, limit));
+        return ResponseEntity.ok().cacheControl(LIST_CACHE).body(postService.search(q, Section.canonical(section), limit));
     }
 
     /** GET /api/v1/trending?section=TECH&limit=5 — top posts by recent views (Redis sorted set). */
@@ -112,6 +112,6 @@ public class PostController {
             @RequestParam(defaultValue = "5") @Min(1) @Max(20) int limit) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic())
-                .body(viewService.trending(section, limit));
+                .body(viewService.trending(Section.canonical(section), limit));
     }
 }

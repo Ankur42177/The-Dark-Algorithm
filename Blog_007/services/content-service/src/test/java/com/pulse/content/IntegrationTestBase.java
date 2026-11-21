@@ -1,7 +1,9 @@
 package com.pulse.content;
 
+import com.pulse.content.mail.TestMailConfig;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -19,8 +21,11 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"pulse.views.flush-interval=1h", "pulse.trending.decay-cron=-", "pulse.outbox.poll-interval=100ms",
                 // never call the developer's running website from tests (Blog_007/.env sets the secret)
-                "pulse.web.revalidate-secret="}) // jobs: run manually in tests
+                "pulse.web.revalidate-secret=",
+                // newsletter: no timer (tests call the job), and every contact message notifies this address
+                "pulse.newsletter.cron=-", "pulse.contact.notify=owner@pulse.test"}) // jobs: run manually in tests
 @ActiveProfiles("dev")
+@Import(TestMailConfig.class)   // emails are captured in memory, never sent or logged
 public abstract class IntegrationTestBase {
 
     @ServiceConnection

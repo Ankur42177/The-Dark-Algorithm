@@ -56,6 +56,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /** Newsletter tokens (unknown / expired link) and admin contact messages that don't exist. */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ProblemDetail handleResourceNotFound(ResourceNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setType(URI.create(PROBLEM_BASE + ex.problemType()));
+        problem.setTitle(ex.title());
+        return problem;
+    }
+
     /** 409 Conflict: optimistic-lock failure, taken slug, invalid status transition, idempotency in progress. */
     @ExceptionHandler(AdminPostService.Conflict.class)
     public ProblemDetail handleConflict(AdminPostService.Conflict ex) {

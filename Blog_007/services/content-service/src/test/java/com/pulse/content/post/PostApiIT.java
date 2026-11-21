@@ -121,9 +121,12 @@ class PostApiIT extends IntegrationTestBase {
 
     @Test
     void sectionsAreCounted() {
-        assertThat(postService.sections())
-                .extracting(PostDtos.SectionCount::posts)
-                .containsExactly(2L, 3L, 3L); // AI, FOOTBALL, TECH (alphabetical)
+        // AI was merged into TECH (V6): only two sections have posts now. TECH >= 5 because other test
+        // classes share this database and may publish TECH posts too.
+        List<PostDtos.SectionCount> counts = postService.sections();
+        assertThat(counts).extracting(PostDtos.SectionCount::section).containsExactly(Section.FOOTBALL, Section.TECH);
+        assertThat(counts.get(0).posts()).isEqualTo(3L);
+        assertThat(counts.get(1).posts()).isGreaterThanOrEqualTo(5L);
     }
 
     /**

@@ -41,10 +41,19 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             // CSRF for cookie-authenticated, state-changing requests. spa() = XSRF-TOKEN cookie readable by
             // JavaScript + X-XSRF-TOKEN header expected back ("double-submit cookie").
+            //
+            // Public forms (newsletter, contact) are exempt too. CSRF tricks a victim's browser into sending a
+            // request WITH THE VICTIM'S COOKIES, so the server acts "as the victim". These endpoints never look at
+            // who is calling: a forged request does exactly what the attacker could do with curl, so a CSRF token
+            // would add nothing (and anonymous visitors don't have one). Their protection is different: gateway
+            // rate limit (5 / 10 min / IP), honeypot, double opt-in and a per-address resend cooldown.
+            // The ADMIN newsletter/contact endpoints live under /api/v1/admin/** and still require the CSRF token.
             .csrf(csrf -> csrf.spa().ignoringRequestMatchers(
                     "/api/v1/auth/login",          // no session exists yet (and SameSite + throttle protect it)
                     "/api/v1/auth/refresh",        // refresh cookie is SameSite=Strict + path-scoped
-                    "/api/v1/posts/*/view"))       // anonymous beacon, nothing to protect
+                    "/api/v1/posts/*/view",        // anonymous beacon, nothing to protect
+                    "/api/v1/newsletter/subscribe", "/api/v1/newsletter/confirm", "/api/v1/newsletter/unsubscribe",
+                    "/api/v1/contact"))            // anonymous public forms (see above)
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                     .requestMatchers("/api/v1/auth/me").authenticated()

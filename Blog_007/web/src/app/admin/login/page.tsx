@@ -25,20 +25,19 @@ export default function LoginPage() {
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto mt-16 max-w-sm space-y-4 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-6">
-      <h1 className="text-2xl font-bold">Admin login</h1>
-      <label className="block text-sm">Username
-        <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username"
-          className="mt-1 w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2" />
+    <form onSubmit={submit} className="admin-card mx-auto mt-10 max-w-sm space-y-5 !p-8">
+      <div>
+        <p className="kicker">Back office</p>
+        <h1 className="mt-2 font-display text-3xl font-medium tracking-tight text-ink">Welcome back</h1>
+      </div>
+      <label className="block text-sm font-semibold text-ink">Username
+        <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="field mt-1.5" />
       </label>
-      <label className="block text-sm">Password
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password"
-          className="mt-1 w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2" />
+      <label className="block text-sm font-semibold text-ink">Password
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" className="field mt-1.5" />
       </label>
-      {error && <p className="text-sm text-red-500" role="alert">{error}</p>}
-      <button disabled={busy} className="w-full rounded-lg bg-brand py-2 font-semibold text-white disabled:opacity-50">
-        {busy ? "Signing in…" : "Sign in"}
-      </button>
+      {error && <p className="text-sm text-hot" role="alert">{error}</p>}
+      <button disabled={busy} className="btn-pill w-full">{busy ? "Signing in…" : <>Sign in <span className="arrow">→</span></>}</button>
     </form>
   );
 }

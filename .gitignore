@@ -23,3 +23,8 @@ Learning_project/
 CLAUDE.md
 .claude/
 PLAN.md
+START_PULSE.md
+STOP_PULSE.md
+local-tools/
+start-pulse.sh
+stop-pulse.sh

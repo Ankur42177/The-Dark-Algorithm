@@ -23,13 +23,13 @@ export function LoadMore({ section, initialCursor }: { section: SectionKey; init
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/v1/posts?section=${section}&limit=10&cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(`${API}/api/v1/posts?section=${section}&limit=9&cursor=${encodeURIComponent(cursor)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const page = (await res.json()) as CursorPage<PostSummary>;
       setPosts((p) => [...p, ...page.items]);
       setCursor(page.nextCursor);
     } catch (e) {
-      setError("Couldn't load more posts. Try again.");
+      setError("The dealer dropped the deck. Try again?");
       console.error(e);
     } finally {
       setLoading(false);
@@ -39,18 +39,17 @@ export function LoadMore({ section, initialCursor }: { section: SectionKey; init
   return (
     <>
       {posts.length > 0 && (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {posts.map((p) => <PostCard key={p.id} post={p} />)}
         </div>
       )}
-      <div className="mt-6 text-center">
+      <div className="mt-12 text-center">
         {cursor && (
-          <button onClick={load} disabled={loading}
-            className="rounded-full border border-brand px-5 py-2 text-sm font-semibold text-brand hover:bg-brand hover:text-white disabled:opacity-50">
-            {loading ? "Loading…" : "Load more"}
+          <button onClick={load} disabled={loading} className="btn-pill disabled:opacity-50">
+            {loading ? "Shuffling…" : <>Deal me more cards <span className="arrow">↓</span></>}
           </button>
         )}
-        {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+        {error && <p className="mt-2 text-sm text-hot">{error}</p>}
       </div>
     </>
   );

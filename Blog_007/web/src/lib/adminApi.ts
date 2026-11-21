@@ -47,3 +47,37 @@ export type Status = "DRAFT" | "SCHEDULED" | "PUBLISHED" | "UNPUBLISHED";
 export interface AdminPostRow { id: string; slug: string; title: string; section: string; status: Status; publishedAt: string | null; updatedAt: string; version: number }
 export interface AdminPost extends AdminPostRow { summary: string | null; bodyMd: string; bodyHtml: string; tags: string[]; coverImageUrl: string | null; readingMinutes: number }
 export interface Me { username: string; displayName: string }
+
+// ---- Phase 7: ingestion-service admin (reached through the api-gateway on 8080) ----
+export type Section = "TECH" | "FOOTBALL" | "AI";
+export interface FeedSource {
+  id: string; name: string; siteUrl: string; feedUrl: string; section: Section; fetchIntervalMin: number;
+  lastFetchedAt: string | null; nextFetchAt: string; consecutiveFailures: number; active: boolean; disabledReason: string | null;
+}
+export interface FetchRun {
+  id: string; sourceId: string; sourceName: string | null; attempt: number; startedAt: string; finishedAt: string | null;
+  status: "RUNNING" | "OK" | "NOT_MODIFIED" | "SKIPPED" | "FAILED"; httpStatus: number | null; itemsSeen: number; itemsNew: number; error: string | null;
+}
+export interface DeadLetter {
+  id: string; messageId: string; sourceId: string | null; sourceName: string | null; attempts: number; reason: string;
+  createdAt: string; requeuedAt: string | null;
+}
+
+// ---- Newsletter + contact admin (content-service v7, through the gateway) ----
+export type SubscriberStatus = "PENDING" | "ACTIVE" | "UNSUBSCRIBED";
+/** `email` arrives already masked by the server (e.g. "an***@gmail.com"): the admin UI never sees full addresses. */
+export interface Subscriber {
+  id: string; email: string; name: string | null; status: SubscriberStatus;
+  createdAt: string; confirmedAt: string | null; unsubscribedAt: string | null;
+}
+export interface NewsletterOverview {
+  counts: Record<SubscriberStatus, number>; total: number;
+  /** "YYYY-MM" */ period: string; sentThisPeriod: number;
+  recent: Subscriber[];   // 50 newest
+}
+export interface MonthlySendResult { period: string; sent: number; skipped: number; failed: number }
+export interface ContactMessage { id: string; name: string; email: string; message: string; createdAt: string; handledAt: string | null }
+
+/** True when an admin endpoint isn't reachable/deployed (vs. a real error worth showing). */
+export const isNotDeployed = (e: unknown) =>
+  !(e instanceof ApiError) || [404, 405, 501, 502, 503, 504].includes(e.status);

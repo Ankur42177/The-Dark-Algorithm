@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
     remotePatterns: [{ protocol: "https", hostname: "**" }],
     formats: ["image/avif", "image/webp"],
   },
+  // Pulse now has two sections: AI was merged into Tech. 308 = permanent, so search engines move the ranking too.
+  async redirects() {
+    return [
+      { source: "/ai", destination: "/tech", permanent: true },
+      { source: "/ai/:path*", destination: "/tech", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

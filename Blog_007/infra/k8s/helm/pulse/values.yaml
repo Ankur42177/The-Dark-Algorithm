@@ -1,0 +1,249 @@
+# =====================================================================
+# values.yaml — DEFAULT settings of the Pulse chart (production-like).
+# Override per environment with -f values-kind.yaml or --set key=value.
+# Designed and developed by Ankur Kumar · © 2026 Ravenclaw_007 LLC
+# =====================================================================
+
+global:
+  imageRegistry: ""              # e.g. "ghcr.io/ankur42177" in CI; empty = local images (kind)
+  imagePullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: pulse
+
+# Pod-level security for OUR containers (images built from infra/docker/*.Dockerfile run as uid 10001).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault         # the container runtime's default syscall filter
+
+# Secrets are created OUTSIDE Helm by default (see templates/secret.yaml). Keys the chart reads:
+#   POSTGRES_SUPERUSER_PASSWORD, CONTENT_DB_PASSWORD, INGESTION_DB_PASSWORD, ASSISTANT_DB_PASSWORD,
+#   PULSE_JWT_PRIVATE_KEY, PULSE_JWT_PUBLIC_KEY, ADMIN_PASSWORD_HASH, REVALIDATE_SECRET,
+#   RABBITMQ_PASSWORD, RABBITMQ_AMQP_URL
+secrets:
+  create: false
+  name: pulse-secrets
+  values: {}
+
+networkPolicy:
+  enabled: false
+
+testImage: busybox:1.37.0
+
+# ---------------------------------------------------------------------
+# One entry per workload. Every key below is read by the generic templates.
+# Same image can appear twice with different roles (ingestion scheduler/worker, assistant api/embedder).
+# ---------------------------------------------------------------------
+services:
+
+  content-service:
+    enabled: true
+    image: { repository: pulse/content-service, tag: "0.1.0" }
+    port: 8081
+    managementPort: 9081
+    env:
+      DB_HOST: pulse-postgres
+      DB_PORT: "5432"
+      CONTENT_DB_USER: content
+      REDIS_HOST: pulse-redis
+      PULSE_CORS_ORIGINS: https://pulse.example.com
+    secretEnv: [CONTENT_DB_PASSWORD, PULSE_JWT_PRIVATE_KEY, PULSE_JWT_PUBLIC_KEY, ADMIN_PASSWORD_HASH]
+    probes: &springProbes
+      port: management
+      startup:   { path: /actuator/health/liveness,  periodSeconds: 5,  failureThreshold: 36 }  # up to 3 min to boot
+      liveness:  { path: /actuator/health/liveness,  periodSeconds: 10, failureThreshold: 3 }
+      readiness: { path: /actuator/health/readiness, periodSeconds: 5,  failureThreshold: 3 }
+    readOnlyRootFilesystem: true
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }   # what the scheduler RESERVES (and what HPA % is relative to)
+      limits:   { cpu: "1",  memory: 768Mi }   # hard ceiling: CPU is throttled, memory over limit = OOMKilled
+    service: { type: ClusterIP }
+    autoscaling:
+      hpa:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 10
+        targetCPUUtilizationPercentage: 60
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 0        # react to spikes immediately
+            policies: [{ type: Percent, value: 100, periodSeconds: 30 }]   # at most double every 30 s
+          scaleDown:
+            stabilizationWindowSeconds: 300      # wait 5 min of low load before removing pods (no flapping)
+            policies: [{ type: Pods, value: 1, periodSeconds: 60 }]
+    pdb: { maxUnavailable: 1 }
+
+  api-gateway:                     # Phase 5
+    enabled: false
+    image: { repository: pulse/api-gateway, tag: "0.1.0" }
+    port: 8080
+    managementPort: 9080
+    env:
+      REDIS_HOST: pulse-redis
+      CONTENT_SERVICE_URL: http://content-service:8081
+      INGESTION_SERVICE_URL: http://ingestion-scheduler:8082
+      ASSISTANT_SERVICE_URL: http://assistant-api:8083
+      JWKS_URI: http://content-service:8081/.well-known/jwks.json
+    probes: *springProbes
+    readOnlyRootFilesystem: true
+    resources:
+      requests: { cpu: 200m, memory: 384Mi }
+      limits:   { cpu: "1",  memory: 512Mi }
+    service: { type: ClusterIP }
+    autoscaling:
+      hpa: { enabled: true, minReplicas: 2, maxReplicas: 10, targetCPUUtilizationPercentage: 60 }
+    pdb: { maxUnavailable: 1 }
+
+  ingestion-scheduler:             # Phase 7 — role "scheduler": enqueues FetchFeed jobs (ShedLock = one leader)
+    enabled: false
+    image: { repository: pulse/ingestion-service, tag: "0.1.0" }
+    port: 8082
+    managementPort: 9082
+    replicas: 2
+    env: { SPRING_PROFILES_ACTIVE: scheduler, DB_HOST: pulse-postgres, REDIS_HOST: pulse-redis, RABBITMQ_HOST: pulse-rabbitmq, KAFKA_BOOTSTRAP_SERVERS: "pulse-kafka:9092" }
+    secretEnv: [INGESTION_DB_PASSWORD, RABBITMQ_PASSWORD]
+    probes: *springProbes
+    readOnlyRootFilesystem: true
+    resources:
+      requests: { cpu: 100m, memory: 384Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+    pdb: { maxUnavailable: 1 }
+
+  ingestion-worker:                # Phase 7 — role "worker": scaled by KEDA on RabbitMQ queue length, 0..10
+    enabled: false
+    image: { repository: pulse/ingestion-service, tag: "0.1.0" }
+    port: 8082
+    managementPort: 9082
+    env: { SPRING_PROFILES_ACTIVE: worker, DB_HOST: pulse-postgres, REDIS_HOST: pulse-redis, RABBITMQ_HOST: pulse-rabbitmq, KAFKA_BOOTSTRAP_SERVERS: "pulse-kafka:9092" }
+    secretEnv: [INGESTION_DB_PASSWORD, RABBITMQ_PASSWORD]
+    probes: *springProbes
+    readOnlyRootFilesystem: true
+    resources:
+      requests: { cpu: 200m, memory: 384Mi }
+      limits:   { cpu: "1",  memory: 512Mi }
+    service: { enabled: false }    # workers pull from the queue; nothing calls them
+    autoscaling:
+      keda:
+        enabled: true
+        minReplicaCount: 0         # scale to ZERO when the queue is empty
+        maxReplicaCount: 10
+        cooldownPeriod: 120
+        triggers:                  # PLAN §16.3
+          - type: rabbitmq
+            metadata:
+              queueName: feed.fetch.q
+              mode: QueueLength
+              value: "20"          # ~20 waiting messages per replica
+            authenticationRef:
+              name: rabbitmq-auth
+        triggerAuthentication:
+          name: rabbitmq-auth
+          secretTargetRef:
+            - { parameter: host, key: RABBITMQ_AMQP_URL }   # amqp://pulse:<pw>@pulse-rabbitmq:5672/
+
+  assistant-api:                   # Phase 8 — chat endpoint (long-lived SSE streams)
+    enabled: false
+    image: { repository: pulse/assistant-service, tag: "0.1.0" }
+    port: 8083
+    managementPort: 9083
+    env: { SPRING_PROFILES_ACTIVE: api, DB_HOST: pulse-postgres, REDIS_HOST: pulse-redis, KAFKA_BOOTSTRAP_SERVERS: "pulse-kafka:9092" }
+    secretEnv: [ASSISTANT_DB_PASSWORD]
+    probes: *springProbes
+    readOnlyRootFilesystem: true
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: "1",  memory: 768Mi }
+    terminationGracePeriodSeconds: 60       # let streaming answers finish
+    autoscaling:
+      hpa: { enabled: true, minReplicas: 2, maxReplicas: 6, targetCPUUtilizationPercentage: 60 }
+    pdb: { maxUnavailable: 1 }
+
+  assistant-embedder:              # Phase 8 — Kafka consumer, scaled by KEDA on consumer-group LAG
+    enabled: false
+    image: { repository: pulse/assistant-service, tag: "0.1.0" }
+    port: 8083
+    managementPort: 9083
+    env: { SPRING_PROFILES_ACTIVE: embedder, DB_HOST: pulse-postgres, KAFKA_BOOTSTRAP_SERVERS: "pulse-kafka:9092" }
+    secretEnv: [ASSISTANT_DB_PASSWORD]
+    probes: *springProbes
+    readOnlyRootFilesystem: true
+    resources:
+      requests: { cpu: 250m, memory: 512Mi }
+      limits:   { cpu: "1",  memory: 768Mi }
+    service: { enabled: false }
+    autoscaling:
+      keda:
+        enabled: true
+        minReplicaCount: 1
+        maxReplicaCount: 6         # never more than the topic's partition count (extra consumers sit idle)
+        triggers:
+          - type: kafka
+            metadata:
+              bootstrapServers: "pulse-kafka:9092"
+              consumerGroup: assistant-embedder
+              topic: content.post.events
+              lagThreshold: "50"
+
+  web:                             # Phase 2 — Next.js standalone server
+    enabled: true
+    image: { repository: pulse/web, tag: "0.1.0" }
+    port: 3000
+    env:
+      PULSE_API_URL: http://content-service:8081
+      SITE_URL: https://pulse.example.com
+    secretEnv: [REVALIDATE_SECRET]
+    probes:
+      port: http
+      startup:   { path: /robots.txt, periodSeconds: 3, failureThreshold: 20 }
+      liveness:  { path: /robots.txt, periodSeconds: 10, failureThreshold: 3 }
+      readiness: { path: /robots.txt, periodSeconds: 5, failureThreshold: 3 }
+    readOnlyRootFilesystem: false  # Next.js writes regenerated (ISR) pages under .next/ at runtime
+    resources:
+      requests: { cpu: 100m, memory: 192Mi }
+      limits:   { cpu: 500m, memory: 384Mi }
+    service: { type: ClusterIP }
+    autoscaling:
+      hpa: { enabled: true, minReplicas: 2, maxReplicas: 6, targetCPUUtilizationPercentage: 70 }
+    pdb: { maxUnavailable: 1 }
+
+# ---------------------------------------------------------------------
+# In-cluster infrastructure for local / learning clusters. Production: managed services or operators.
+# ---------------------------------------------------------------------
+infra:
+  postgres:
+    enabled: true
+    image: pgvector/pgvector:0.8.7-pg18
+    storage: 2Gi
+    storageClassName: ""          # "" = the cluster's default StorageClass
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: "1",  memory: 512Mi }
+  redis:
+    enabled: true
+    image: redis:8.8.4-alpine
+    maxmemory: 128mb
+    storage: 512Mi
+    storageClassName: ""
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 500m, memory: 192Mi }
+  kafka:                          # Phase 6+ (or use the Strimzi operator)
+    enabled: false
+    image: apache/kafka:4.4.0
+    partitions: 6
+    storage: 2Gi
+    resources:
+      requests: { cpu: 250m, memory: 768Mi }
+      limits:   { cpu: "1",  memory: 1Gi }
+  rabbitmq:                       # Phase 7+ (or use the RabbitMQ Cluster Operator)
+    enabled: false
+    image: rabbitmq:4.3.8-management-alpine
+    storage: 1Gi
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: 500m, memory: 512Mi }

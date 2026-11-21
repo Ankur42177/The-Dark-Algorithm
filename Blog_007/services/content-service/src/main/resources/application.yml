@@ -82,6 +82,16 @@ spring:
 server:
   port: 8081
   shutdown: graceful                 # on stop: finish in-flight requests first (matters in Kubernetes)
+  # Behind the api-gateway every request comes FROM the gateway; the real client IP is in X-Forwarded-For.
+  # "native" = Tomcat's RemoteIpValve: it replaces request.getRemoteAddr() with the X-Forwarded-For client,
+  # but ONLY when the direct peer is a trusted proxy (regex below). From anywhere else the header is
+  # ignored — otherwise anyone could spoof X-Forwarded-For to dodge the login throttle or frame someone.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Loopback + private ranges (gateway in Docker/k8s). Narrow it in production via PULSE_TRUSTED_PROXIES.
+      # No {n} quantifiers: braces would end the ${...} placeholder.
+      internal-proxies: ${PULSE_TRUSTED_PROXIES:127\.\d+\.\d+\.\d+|0:0:0:0:0:0:0:1|::1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[01])\.\d+\.\d+}
   compression:
     enabled: true                    # gzip JSON responses larger than 2 KB
     min-response-size: 2KB

@@ -1,0 +1,99 @@
+# =====================================================================
+# ingestion-service. Roles: profiles "scheduler" and/or "worker".
+# =====================================================================
+spring:
+  application:
+    name: ingestion-service
+  profiles:
+    default: scheduler,worker          # local dev: both roles in one process
+  config:
+    import: "optional:file:.env[.properties],optional:file:../../.env[.properties]"
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/ingestion_db
+    username: ${INGESTION_DB_USER:ingestion}
+    password: ${INGESTION_DB_PASSWORD:}
+    hikari:
+      pool-name: ingestion-pool
+      maximum-pool-size: 10
+      connection-timeout: 3000
+      data-source-properties:
+        connectTimeout: 3
+        socketTimeout: 10
+        options: "-c statement_timeout=5000"
+  flyway:
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 500ms
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:pulse}
+    password: ${RABBITMQ_PASSWORD:}
+    listener:
+      simple:
+        acknowledge-mode: manual       # we ack only after the job is fully handled
+        prefetch: 10                   # at most 10 unacked jobs per consumer = backpressure
+        concurrency: 2
+        max-concurrency: 4
+        default-requeue-rejected: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        max.block.ms: 5000
+        delivery.timeout.ms: 15000
+        request.timeout.ms: 5000
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: 8082
+  shutdown: graceful                   # finish in-flight jobs before stopping (scale-down safety)
+
+management:
+  server:
+    port: 9082
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+pulse:
+  ingestion:
+    tick: 60s                          # how often the scheduler looks for due feeds
+    retry-delays: 30s,2m,10m,30m       # one RabbitMQ retry queue per delay (exponential backoff)
+  fetch:
+    max-bytes: 2097152                 # 2 MB cap per feed (PLAN §15)
+    timeout: 5s
+    allowed-private-hosts:             # tests only; NEVER in production
+  kafka:
+    partitions: 3
+    replicas: 1
+  auth:
+    jwks-uri: ${PULSE_JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+    issuer: ${PULSE_JWT_ISSUER:https://pulse.local}
+  cors:
+    allowed-origins: ${PULSE_CORS_ORIGINS:http://localhost:3000}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.pulse: INFO

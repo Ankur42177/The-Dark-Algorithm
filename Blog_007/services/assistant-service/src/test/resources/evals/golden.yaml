@@ -1,0 +1,63 @@
+# Golden set for the Ask Pulse agent (PLAN §13.6): question → which tool(s) a good agent should call,
+# and (optionally) which post it should cite or which page it should open.
+# A case PASSES when at least one expected tool was called AND the expected citation/action (if any) appears.
+# Run (Ollama must be running with the models pulled):
+#   ./mvnw -f services/assistant-service/pom.xml -Pevals verify
+- question: "What's new in AI this week?"
+  tools: [getLatestPosts]
+  cite: rag-in-one-picture
+- question: "Any new football posts?"
+  tools: [getLatestPosts]
+  cite: arsenal-pressing-numbers
+- question: "What did Ankur write about tech recently?"
+  tools: [getLatestPosts]
+  cite: kafka-consumer-groups-explained
+- question: "Show me Ankur's post on Kafka"
+  tools: [searchContent, getLatestPosts]
+  cite: kafka-consumer-groups-explained
+- question: "Explain consumer groups"
+  tools: [searchContent]
+  cite: kafka-consumer-groups-explained
+- question: "Why is keyset pagination faster than OFFSET?"
+  tools: [searchContent]
+  cite: why-keyset-pagination-beats-offset
+- question: "Why is Redis so fast?"
+  tools: [searchContent]
+  cite: redis-is-single-threaded-and-fast
+- question: "What is expected goals?"
+  tools: [searchContent]
+  cite: expected-goals-for-beginners
+- question: "How do you measure pressing in football?"
+  tools: [searchContent]
+  cite: arsenal-pressing-numbers
+- question: "Where can I find free football data?"
+  tools: [searchContent]
+  cite: the-best-football-data-sources
+- question: "What is RAG?"
+  tools: [searchContent]
+  cite: rag-in-one-picture
+- question: "What is an AI agent?"
+  tools: [searchContent]
+  cite: what-is-an-ai-agent
+- question: "Which sections does Pulse have?"
+  tools: [listSections]
+- question: "How many football posts are there?"
+  tools: [listSections, getLatestPosts]
+- question: "Take me to the football section"
+  tools: [navigate]
+  action: /football
+- question: "Open the AI section"
+  tools: [navigate]
+  action: /ai
+- question: "Take me to the tech page"
+  tools: [navigate]
+  action: /tech
+- question: "Go to the home page"
+  tools: [navigate]
+  action: /
+- question: "Summarise the post why-keyset-pagination-beats-offset"
+  tools: [getPost, searchContent]
+  cite: why-keyset-pagination-beats-offset
+- question: "Anything about Arsenal?"
+  tools: [searchContent, getLatestPosts]
+  cite: arsenal-pressing-numbers

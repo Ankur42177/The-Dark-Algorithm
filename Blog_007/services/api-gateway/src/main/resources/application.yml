@@ -1,0 +1,62 @@
+# =====================================================================
+# api-gateway configuration. Designed and developed by Ankur Kumar · © 2026 Ravenclaw_007 LLC
+# =====================================================================
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: api-gateway
+  config:
+    import: "optional:file:.env[.properties],optional:file:../../.env[.properties]"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 250ms
+      connect-timeout: 250ms
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 1000        # ms to open a TCP connection to a service
+            response-timeout: 5s         # max wait for a response (assistant route overrides: 60 s)
+          # Request-size limit and CORS de-duplication are applied to every route in GatewayRoutes.common()
+          # (YAML default-filters would NOT apply to routes defined in Java).
+          #
+          # X-Forwarded-For: since 2025 the gateway only adds X-Forwarded-* headers when trusted proxies are
+          # configured (security hardening). Incoming X-Forwarded-* are stripped at the edge by RequestIdFilter,
+          # then the gateway appends the real client IP. Internal/private ranges = proxies we may sit behind.
+          trusted-proxies: ${PULSE_TRUSTED_PROXIES:127\.0\.0\.1|0:0:0:0:0:0:0:1|10\..*|172\.(1[6-9]|2[0-9]|3[01])\..*|192\.168\..*}
+
+pulse:
+  gateway:
+    content-uri: ${CONTENT_SERVICE_URI:http://localhost:8081}
+    ingestion-uri: ${INGESTION_SERVICE_URI:http://localhost:8082}
+    assistant-uri: ${ASSISTANT_SERVICE_URI:http://localhost:8083}
+    cors-allowed-origins: ${PULSE_CORS_ORIGINS:http://localhost:3000}
+    jwt-issuer: ${PULSE_JWT_ISSUER:https://pulse.local}
+    trusted-proxy-hops: ${PULSE_TRUSTED_PROXY_HOPS:0}   # 1 behind a Kubernetes ingress / load balancer
+    rate-limit-multiplier: ${PULSE_RATE_LIMIT_MULTIPLIER:1}   # >1 only for load tests
+
+management:
+  server:
+    port: 9080                     # internal only, never routed
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    gateway:
+      access: read-only            # GET /actuator/gateway/routes lists the routing table
+
+logging:
+  level:
+    root: INFO
+    pulse.gateway.access: INFO
+    com.pulse: DEBUG

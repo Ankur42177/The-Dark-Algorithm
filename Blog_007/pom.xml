@@ -61,6 +61,7 @@
     <modules>
         <module>libs/events</module>
         <module>services/content-service</module>
+        <module>services/api-gateway</module>
     </modules>
 
     <properties>

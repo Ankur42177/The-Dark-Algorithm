@@ -5,6 +5,9 @@ Kafka, RabbitMQ, Redis, PostgreSQL and Next.js.
 
 **Designed and developed by Ankur Kumar.** © 2026 Ravenclaw_007 LLC. All rights reserved.
 
+> **New here?** Follow [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md): a step-by-step walkthrough from a
+> fresh Mac to a running site, with the expected output after every command.
+
 ---
 
 ## Contents

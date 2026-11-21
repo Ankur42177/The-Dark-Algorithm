@@ -52,7 +52,7 @@ flowchart LR
 
 ## Run locally
 
-Everything lives in [`Blog_007/`](Blog_007/README.md):
+Everything lives in [`Blog_007/`](Blog_007/README.md). **Step-by-step guide with expected output for every command: [Blog_007/docs/LOCAL_SETUP.md](Blog_007/docs/LOCAL_SETUP.md).** Quick version:
 
 ```bash
 cd Blog_007

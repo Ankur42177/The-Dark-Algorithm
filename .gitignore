@@ -1,0 +1,19 @@
+# Secrets
+.env
+**/.env
+!**/.env.example
+
+# Build output
+target/
+**/target/
+node_modules/
+.next/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Logs
+*.log

@@ -1,0 +1,69 @@
+# =====================================================================
+# Local infrastructure for Pulse. Explained line by line in
+# Learning_project/phase-00-foundations/03-docker-and-compose.md
+#
+# PROFILES let us start only what the current phase needs:
+#   core -> Postgres (+pgvector) and Redis          (Phase 0+)
+#   msg  -> Kafka (KRaft) + Kafka UI, RabbitMQ       (added in Phase 6/7)
+#   ai   -> Ollama                                    (added in Phase 8)
+#   obs  -> Prometheus, Grafana, Jaeger, OTel         (added in Phase 9)
+#   apps -> all Spring services + web as containers   (added later)
+#
+# Run from the Blog_007 folder:
+#   docker compose -f infra/docker-compose.yml --env-file .env --profile core up -d
+# =====================================================================
+name: pulse
+
+services:
+
+  postgres:
+    # Official Postgres 18 with the pgvector extension pre-installed (needed in Phase 8).
+    # We pin an EXACT tag so everybody gets the same database version.
+    image: pgvector/pgvector:0.8.7-pg18
+    profiles: ["core"]
+    container_name: pulse-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      # Passed through to the init script, which creates one database + user per service.
+      CONTENT_DB_PASSWORD: ${CONTENT_DB_PASSWORD:?set CONTENT_DB_PASSWORD in .env}
+      INGESTION_DB_PASSWORD: ${INGESTION_DB_PASSWORD:?set INGESTION_DB_PASSWORD in .env}
+      ASSISTANT_DB_PASSWORD: ${ASSISTANT_DB_PASSWORD:?set ASSISTANT_DB_PASSWORD in .env}
+    ports:
+      - "5432:5432"            # host:container -> reach it at localhost:5432 from your Mac
+    volumes:
+      - pg-data:/var/lib/postgresql   # named volume: data survives `docker compose down`
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro   # scripts run ONCE, on an empty volume
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.8.4-alpine
+    profiles: ["core"]
+    container_name: pulse-redis
+    # --appendonly yes : write every change to a log on disk (AOF) so a restart keeps data
+    # --maxmemory      : never use more than 256 MB of RAM
+    # allkeys-lfu      : when full, evict the Least Frequently Used keys (good for a cache)
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lfu
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pg-data:
+  redis-data:

@@ -1,0 +1,97 @@
+# =====================================================================
+# content-service configuration. Explained key by key in
+# Learning_project/phase-01-content-service/06-configuration-explained.md
+#
+# ${NAME:default} = read environment variable NAME, or use "default".
+# This is Twelve-Factor rule III: config lives in the environment,
+# so the SAME jar runs on your laptop, in Docker and in Kubernetes.
+# =====================================================================
+spring:
+  application:
+    name: content-service
+
+  config:
+    # Load the git-ignored .env file if it exists (local development only).
+    # Two paths: one for running from Blog_007/, one from the module folder.
+    import: "optional:file:.env[.properties],optional:file:../../.env[.properties]"
+
+  threads:
+    virtual:
+      enabled: true   # Java 21+ virtual threads: one cheap thread per request (see learning notes)
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/content_db
+    username: ${CONTENT_DB_USER:content}
+    password: ${CONTENT_DB_PASSWORD:}   # no default on purpose: comes from .env / env var
+    hikari:
+      pool-name: content-pool
+      maximum-pool-size: 10          # max open DB connections (Postgres default limit is 100 total)
+      minimum-idle: 2
+      connection-timeout: 3000       # ms to wait for a free connection before failing fast
+      max-lifetime: 1800000          # recycle connections every 30 min
+      # Timeouts INSIDE the PostgreSQL driver. Without these, a frozen/partitioned database makes
+      # requests hang forever (we measured > 25 s with `docker pause pulse-postgres`).
+      data-source-properties:
+        connectTimeout: 3            # seconds to open a TCP connection
+        socketTimeout: 5             # seconds to wait for ANY response on an open connection
+        options: "-c statement_timeout=3000"   # server-side: cancel any query running > 3 s
+
+  jpa:
+    open-in-view: false              # don't keep a DB connection open while JSON is being written
+    hibernate:
+      ddl-auto: validate             # Flyway owns the schema; Hibernate only checks it
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    locations: classpath:db/migration
+
+  mvc:
+    problemdetails:
+      enabled: true                  # RFC 9457 JSON errors for Spring's built-in exceptions
+
+server:
+  port: 8081
+  shutdown: graceful                 # on stop: finish in-flight requests first (matters in Kubernetes)
+  compression:
+    enabled: true                    # gzip JSON responses larger than 2 KB
+    min-response-size: 2KB
+  error:
+    include-stacktrace: never        # never leak stack traces to clients
+
+management:
+  server:
+    port: 9081                       # actuator on a SEPARATE port: never exposed through the gateway
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true                # /actuator/health/liveness and /readiness for Kubernetes
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+logging:
+  level:
+    root: INFO
+    com.pulse: DEBUG
+
+---
+# ---------------------------------------------------------------------
+# "dev" profile: activate with SPRING_PROFILES_ACTIVE=dev (or -Dspring-boot.run.profiles=dev).
+# Adds sample posts so the API has something to show.
+# ---------------------------------------------------------------------
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed

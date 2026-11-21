@@ -59,6 +59,7 @@
         Phase 8: assistant-service
     -->
     <modules>
+        <module>libs/events</module>
         <module>services/content-service</module>
     </modules>
 
@@ -80,6 +81,11 @@
     -->
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>com.pulse</groupId>
+                <artifactId>pulse-events</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>com.vladsch.flexmark</groupId>
                 <artifactId>flexmark</artifactId>

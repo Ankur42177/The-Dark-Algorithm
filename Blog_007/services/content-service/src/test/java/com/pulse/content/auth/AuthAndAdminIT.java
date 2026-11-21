@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /**
  * Phase 4 end-to-end security tests over real HTTP with real cookies:
@@ -143,10 +144,13 @@ class AuthAndAdminIT extends IntegrationTestBase {
 
         long version = json.readTree(s.get("/api/v1/admin/posts/" + id).body()).get("version").asLong();
         assertThat(s.send("PUT", "/api/v1/admin/posts/" + id, draft("Edited title", version), true).statusCode()).isEqualTo(200);
-        assertThat(new Session().get("/api/v1/posts/" + slug).body()).contains("Edited title");  // readers see the edit
+        // Phase 6: eviction is now event-driven (outbox → Kafka → content-cache-sync) → eventually consistent.
+        await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() ->
+                assertThat(new Session().get("/api/v1/posts/" + slug).body()).contains("Edited title"));
 
         assertThat(s.send("POST", "/api/v1/admin/posts/" + id + "/unpublish", "", true).statusCode()).isEqualTo(200);
-        assertThat(new Session().get("/api/v1/posts/" + slug).statusCode()).isEqualTo(404);
+        await().atMost(java.time.Duration.ofSeconds(15)).untilAsserted(() ->
+                assertThat(new Session().get("/api/v1/posts/" + slug).statusCode()).isEqualTo(404));
     }
 
     @Test

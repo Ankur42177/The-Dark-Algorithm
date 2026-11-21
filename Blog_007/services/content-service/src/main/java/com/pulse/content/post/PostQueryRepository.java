@@ -89,6 +89,49 @@ public class PostQueryRepository {
         return statement.query(PostQueryRepository::mapSummary).list();
     }
 
+    /** Columns + tags subquery shared by list, search and internal queries. */
+    private static final String SUMMARY_COLUMNS = """
+            SELECT p.id, p.slug, p.title, p.summary, p.section, p.cover_image_url,
+                   p.reading_minutes, p.published_at,
+                   ARRAY(SELECT t.name FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                          WHERE pt.post_id = p.id ORDER BY t.name) AS tags
+            """;
+
+    /**
+     * Full-text search (Phase 6 early task, used by the AI assistant in Phase 8).
+     * websearch_to_tsquery understands Google-like input: "kafka -zookeeper", "consumer groups", or OR.
+     * {@code @@} = "does the document match the query"; the GIN index on search_tsv makes it fast.
+     * ts_rank scores how well it matches (title weight A beats body weight C).
+     */
+    public List<PostSummary> search(String q, Section section, int limit) {
+        String sql = SUMMARY_COLUMNS + """
+                  FROM posts p, websearch_to_tsquery('english', :q) query
+                 WHERE p.status = 'PUBLISHED' AND p.search_tsv @@ query
+                """ + (section != null ? "   AND p.section = :section\n" : "") + """
+                 ORDER BY ts_rank(p.search_tsv, query) DESC, p.published_at DESC
+                 LIMIT :limit""";
+        JdbcClient.StatementSpec st = jdbc.sql(sql).param("q", q).param("limit", limit);
+        if (section != null) {
+            st = st.param("section", section.name());
+        }
+        return st.query(PostQueryRepository::mapSummary).list();
+    }
+
+    /** Internal API for other services: recent published posts, optionally per section. */
+    public List<PostSummary> findRecent(Section section, int sinceDays, int limit) {
+        String sql = SUMMARY_COLUMNS + """
+                  FROM posts p
+                 WHERE p.status = 'PUBLISHED' AND p.published_at >= now() - make_interval(days => :days)
+                """ + (section != null ? "   AND p.section = :section\n" : "") + """
+                 ORDER BY p.published_at DESC, p.id DESC
+                 LIMIT :limit""";
+        JdbcClient.StatementSpec st = jdbc.sql(sql).param("days", sinceDays).param("limit", limit);
+        if (section != null) {
+            st = st.param("section", section.name());
+        }
+        return st.query(PostQueryRepository::mapSummary).list();
+    }
+
     /** Counts per section for GET /api/v1/sections. */
     public List<SectionCount> countPublishedBySection() {
         return jdbc.sql("""

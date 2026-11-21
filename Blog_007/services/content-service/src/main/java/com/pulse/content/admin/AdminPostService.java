@@ -3,10 +3,11 @@ package com.pulse.content.admin;
 import com.pulse.content.admin.AdminDtos.AdminPostRow;
 import com.pulse.content.admin.AdminDtos.AdminPostView;
 import com.pulse.content.admin.AdminDtos.PostRequest;
+import com.pulse.content.events.OutboxWriter;
 import com.pulse.content.markdown.MarkdownRenderer;
+import com.pulse.events.EventTypes;
 import com.pulse.content.post.Post;
 import com.pulse.content.post.PostRepository;
-import com.pulse.content.post.PostService;
 import com.pulse.content.post.Tag;
 import com.pulse.content.post.TagRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -14,8 +15,6 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.text.Normalizer;
 import java.time.Instant;
@@ -31,7 +30,10 @@ import java.util.stream.Collectors;
  * Admin use cases: create, edit, publish, schedule, unpublish, delete.
  *
  * <p>Admin reads go straight to Postgres, never through Redis: "read-your-writes" — Ankur must see his
- * own edit immediately (PLAN §16.5). After each committed change we evict the reader caches.
+ * own edit immediately (PLAN §16.5).
+ *
+ * <p>Phase 6: every change also writes an EVENT into the outbox table, in the SAME transaction.
+ * Kafka consumers then evict caches, refresh the website and (Phase 8) re-embed the post for the chatbot.
  */
 @Service
 public class AdminPostService {
@@ -51,15 +53,15 @@ public class AdminPostService {
     private final PostRepository posts;
     private final TagRepository tags;
     private final MarkdownRenderer markdown;
-    private final PostService readerSide;
+    private final OutboxWriter outbox;
     private final JdbcClient jdbc;
 
     public AdminPostService(PostRepository posts, TagRepository tags, MarkdownRenderer markdown,
-                            PostService readerSide, JdbcClient jdbc) {
+                            OutboxWriter outbox, JdbcClient jdbc) {
         this.posts = posts;
         this.tags = tags;
         this.markdown = markdown;
-        this.readerSide = readerSide;
+        this.outbox = outbox;
         this.jdbc = jdbc;
     }
 
@@ -114,7 +116,7 @@ public class AdminPostService {
         } catch (ObjectOptimisticLockingFailureException e) {
             throw new Conflict("This post was changed by someone else. Reload and re-apply your edit.");
         }
-        evictAfterCommit(p.getSlug());
+        outbox.postEvent(EventTypes.POST_UPDATED, p, null);
         return AdminPostView.from(p);
     }
 
@@ -123,7 +125,7 @@ public class AdminPostService {
         Post p = load(id);
         transition(() -> p.publish(Instant.now()));
         posts.saveAndFlush(p);
-        evictAfterCommit(p.getSlug());
+        outbox.postEvent(EventTypes.POST_PUBLISHED, p, null);     // same transaction: both or neither
         return AdminPostView.from(p);
     }
 
@@ -132,7 +134,7 @@ public class AdminPostService {
         Post p = load(id);
         transition(() -> p.schedule(at, Instant.now()));
         posts.saveAndFlush(p);
-        evictAfterCommit(p.getSlug());
+        outbox.postEvent(EventTypes.POST_UPDATED, p, null);
         return AdminPostView.from(p);
     }
 
@@ -141,15 +143,15 @@ public class AdminPostService {
         Post p = load(id);
         transition(p::unpublish);
         posts.saveAndFlush(p);
-        evictAfterCommit(p.getSlug());
+        outbox.postEvent(EventTypes.POST_UNPUBLISHED, p, null);
         return AdminPostView.from(p);
     }
 
     @Transactional
     public void delete(UUID id) {
         Post p = load(id);
+        outbox.postEvent(EventTypes.POST_UNPUBLISHED, p, "DELETED");   // capture the data before the row is gone
         posts.delete(p);
-        evictAfterCommit(p.getSlug());
     }
 
     // ------------------------------------------------------------------ helpers
@@ -164,20 +166,6 @@ public class AdminPostService {
         } catch (IllegalStateException | IllegalArgumentException e) {
             throw new Conflict(e.getMessage());
         }
-    }
-
-    /**
-     * Evict reader caches only AFTER the transaction commits. If we evicted before, a reader could
-     * re-fill the cache with the OLD row in the gap between eviction and commit (a classic race).
-     * Phase 6 replaces this with an event in the outbox → Kafka → every consumer.
-     */
-    private void evictAfterCommit(String slug) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                readerSide.evict(slug);
-            }
-        });
     }
 
     private Set<Tag> resolveTags(List<String> names) {

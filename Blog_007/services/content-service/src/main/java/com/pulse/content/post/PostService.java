@@ -90,6 +90,22 @@ public class PostService {
         cache.bumpGeneration(CacheKeys.LIST_GENERATION);
     }
 
+    private static final TypeReference<List<PostSummary>> LIST_TYPE = new TypeReference<>() { };
+
+    /** Full-text search, cached 30 s (key includes the list generation, so publishing invalidates it). */
+    public List<PostSummary> search(String q, Section section, int limit) {
+        String normalized = q.trim().replaceAll("\\s+", " ").toLowerCase();
+        String key = "cache:search:" + cache.generation(CacheKeys.LIST_GENERATION) + ":" + (section == null ? "ALL" : section.name())
+                + ":" + limit + ":" + Integer.toHexString(normalized.hashCode()) + ":" + normalized.length();
+        return cache.getOrLoad("search", key, Duration.ofSeconds(30), LIST_TYPE,
+                () -> postQueryRepository.search(normalized, section, limit));
+    }
+
+    /** Recent posts for internal callers (assistant-service tools). Not cached: low volume, must be fresh. */
+    public List<PostSummary> recent(Section section, int sinceDays, int limit) {
+        return postQueryRepository.findRecent(section, sinceDays, limit);
+    }
+
     @Transactional(readOnly = true)
     public List<SectionCount> sections() {
         return postQueryRepository.countPublishedBySection();

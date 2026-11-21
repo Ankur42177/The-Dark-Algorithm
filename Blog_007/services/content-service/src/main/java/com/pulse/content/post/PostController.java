@@ -94,6 +94,16 @@ public class PostController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 
+    /** GET /api/v1/search?q=kafka+consumer&section=TECH&limit=10 — full-text search over published posts. */
+    @GetMapping("/search")
+    @Operation(summary = "Full-text search over published posts")
+    public ResponseEntity<List<PostSummary>> search(
+            @RequestParam @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 200) String q,
+            @RequestParam(required = false) Section section,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(25) int limit) {
+        return ResponseEntity.ok().cacheControl(LIST_CACHE).body(postService.search(q, section, limit));
+    }
+
     /** GET /api/v1/trending?section=TECH&limit=5 — top posts by recent views (Redis sorted set). */
     @GetMapping("/trending")
     @Operation(summary = "Trending posts (by recent views)")

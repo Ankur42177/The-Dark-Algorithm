@@ -5,6 +5,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
@@ -16,7 +17,9 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"pulse.views.flush-interval=1h", "pulse.trending.decay-cron=-"}) // jobs: run manually in tests
+        properties = {"pulse.views.flush-interval=1h", "pulse.trending.decay-cron=-", "pulse.outbox.poll-interval=100ms",
+                // never call the developer's running website from tests (Blog_007/.env sets the secret)
+                "pulse.web.revalidate-secret="}) // jobs: run manually in tests
 @ActiveProfiles("dev")
 public abstract class IntegrationTestBase {
 
@@ -29,8 +32,14 @@ public abstract class IntegrationTestBase {
     protected static final GenericContainer<?> REDIS =
             new GenericContainer<>("redis:8.8.4-alpine").withExposedPorts(6379);
 
+    /** Phase 6: a real single-node Kafka (KRaft). Small heap: Docker memory is shared with the whole stack. */
+    @ServiceConnection
+    protected static final KafkaContainer KAFKA =
+            new KafkaContainer("apache/kafka:4.4.0").withEnv("KAFKA_HEAP_OPTS", "-Xmx256m -Xms128m");
+
     static {
         POSTGRES.start();
         REDIS.start();
+        KAFKA.start();
     }
 }

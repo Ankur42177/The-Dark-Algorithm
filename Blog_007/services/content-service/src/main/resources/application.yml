@@ -55,6 +55,26 @@ spring:
       timeout: 250ms                 # a cache that answers slowly is worse than no cache
       connect-timeout: 250ms
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all                        # leader AND in-sync replicas must have the event before "OK"
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true       # broker drops duplicate retries from this producer (no dupes per partition)
+        max.block.ms: 5000             # don't hang 60 s when Kafka is down
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+    consumer:
+      auto-offset-reset: earliest      # a brand-new group starts from the oldest retained event
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.interval.ms: 60000
+    listener:
+      missing-topics-fatal: false
+
   mvc:
     problemdetails:
       enabled: true                  # RFC 9457 JSON errors for Spring's built-in exceptions
@@ -81,6 +101,14 @@ management:
         enabled: true                # /actuator/health/liveness and /readiness for Kubernetes
 
 pulse:
+  outbox:
+    poll-interval: 250ms
+  kafka:
+    partitions: 3                      # 6 in Kubernetes (PLAN §9.1)
+    replicas: 1                        # 3 in Kubernetes
+  web:
+    revalidate-url: ${WEB_URL:http://localhost:3000}/api/revalidate
+    revalidate-secret: ${REVALIDATE_SECRET:}
   auth:
     admin-username: ${ADMIN_USERNAME:ankur}
     admin-display-name: ${ADMIN_DISPLAY_NAME:Ankur Kumar}

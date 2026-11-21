@@ -16,7 +16,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"spring.data.redis.port=1", "pulse.views.flush-interval=1h", "pulse.trending.decay-cron=-"})
+        properties = {"spring.data.redis.port=1", "pulse.views.flush-interval=1h", "pulse.trending.decay-cron=-",
+                // no Kafka in this test: never attach to a developer's local broker
+                "spring.kafka.bootstrap-servers=localhost:1", "spring.kafka.listener.auto-startup=false",
+                "spring.kafka.admin.auto-create=false", "pulse.outbox.poll-interval=1h"})
 @ActiveProfiles("dev")
 class RedisDownIT {
 

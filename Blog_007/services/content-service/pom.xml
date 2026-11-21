@@ -76,6 +76,17 @@
             <artifactId>owasp-java-html-sanitizer</artifactId>
         </dependency>
 
+        <!-- Phase 6: shared event contracts (EventEnvelope, PostEventData, topic names). -->
+        <dependency>
+            <groupId>com.pulse</groupId>
+            <artifactId>pulse-events</artifactId>
+        </dependency>
+        <!-- Phase 6: Spring for Apache Kafka (KafkaTemplate producer, @KafkaListener consumers, retry + DLT). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
+        </dependency>
+
         <!-- Bean Validation (Hibernate Validator): @Min, @Max, @NotBlank ... on inputs. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -128,6 +139,18 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Phase 6: a real Kafka broker in Docker for tests. -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- "Wait until this becomes true" for asynchronous assertions (events take a moment to flow). -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

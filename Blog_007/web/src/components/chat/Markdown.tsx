@@ -4,7 +4,8 @@
  * The answer is model output — untrusted text that a prompt injection could fill with <script> or
  * <img onerror=…>. So we never use dangerouslySetInnerHTML: we parse a small markdown subset ourselves and
  * build React elements, and React escapes every string. Supported: paragraphs, "- " / "1. " lists,
- * "#" headings (shown as bold lines), ``` code blocks, **bold**, *italic*, `inline code`, [n] citation markers.
+ * "#" headings (shown as bold lines), ``` code blocks, **bold**, *italic*, `inline code`, [n] citation markers
+ * (small models sometimes write [ref:1]; that counts too).
  * Markdown links [text](url) are shown as plain text (links only come from validated citation events).
  * Unclosed **bold / `code at the end of a line render as if closed, so streaming text doesn't flicker.
  */
@@ -54,7 +55,7 @@ export function parseBlocks(text: string): Block[] {
   return blocks;
 }
 
-const INLINE = /`([^`\n]+)(?:`|$)|\*\*([^*\n]+)(?:\*\*|$)|(?<![*\w])\*([^*\n]+)\*(?!\*)|\[([^\]\n]{1,200})\]\([^)\s]{1,2000}\)|\[(\d{1,2})\]/g;
+const INLINE = /`([^`\n]+)(?:`|$)|\*\*([^*\n]+)(?:\*\*|$)|(?<![*\w])\*([^*\n]+)\*(?!\*)|\[([^\]\n]{1,200})\]\((?:[^()\s]|\([^()\s]{0,200}\)){1,2000}\)|\[(?:ref\s*:?\s*)?(\d{1,2})\]/gi;
 
 export function renderInline(text: string, renderRef: (n: number) => ReactNode, keyPrefix = ""): ReactNode[] {
   const out: ReactNode[] = [];
@@ -108,7 +109,7 @@ export function Markdown({ text, renderRef, caret }: { text: string; renderRef: 
 /** Plain text for the clipboard: markdown markers and [n] references stripped. */
 export function toPlainText(text: string): string {
   return text
-    .replace(/\[(\d{1,2})\]/g, "")
+    .replace(/\s?\[(?:ref\s*:?\s*)?\d{1,2}\]/gi, "")
     .replace(/\*\*([^*\n]+)\*\*/g, "$1")
     .replace(/`([^`\n]+)`/g, "$1")
     .replace(/[ \t]+\n/g, "\n")

@@ -3,6 +3,8 @@ package com.pulse.content.newsletter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -47,8 +49,12 @@ public class NewsletterTokens {
     private final SecureRandom random = new SecureRandom();
     private final byte[] secret;
 
-    public NewsletterTokens(@Value("${pulse.newsletter.token-secret:}") String configuredSecret) {
+    public NewsletterTokens(@Value("${pulse.newsletter.token-secret:}") String configuredSecret, Environment env) {
         if (configuredSecret == null || configuredSecret.isBlank()) {
+            // FAIL FAST outside dev/test. With a per-process random key, replica A stores the unsubscribe hash at
+            // confirm time and replica B (different key) puts a different token into the monthly email → every
+            // unsubscribe link 404s. That breaks anti-spam law, so refuse to start instead (Phase 7 review, HIGH).
+            requireDevOrTest(env, "pulse.newsletter.token-secret (PULSE_NEWSLETTER_SECRET)");
             // Dev convenience. Consequence: after a restart, unsubscribe links in OLD emails stop working.
             this.secret = new byte[32];
             random.nextBytes(secret);
@@ -56,6 +62,20 @@ public class NewsletterTokens {
                     + "sent before a restart will stop working). Set PULSE_NEWSLETTER_SECRET in production.");
         } else {
             this.secret = configuredSecret.getBytes(StandardCharsets.UTF_8);
+            if (secret.length < 32) {
+                throw new IllegalStateException("pulse.newsletter.token-secret must be at least 32 bytes (e.g. openssl rand -hex 32)");
+            }
+        }
+    }
+
+    /**
+     * Throws unless the "dev" or "test" Spring profile is active. Shared by every "secret with a throw-away
+     * default" (newsletter HMAC key, contact IP-hash key): convenient on a laptop, dangerous anywhere else.
+     */
+    public static void requireDevOrTest(Environment env, String what) {
+        if (!env.acceptsProfiles(Profiles.of("dev", "test"))) {
+            throw new IllegalStateException(what + " is not set. A random per-process key is only allowed with the "
+                    + "dev/test profile: every replica would use a different key.");
         }
     }
 

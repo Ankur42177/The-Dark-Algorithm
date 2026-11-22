@@ -4,11 +4,13 @@ import com.pulse.content.common.InputRules;
 import com.pulse.content.common.ResourceNotFoundException;
 import com.pulse.content.contact.ContactDtos.ContactMessageView;
 import com.pulse.content.contact.ContactDtos.ContactRequest;
-import com.pulse.content.mail.Mailer;
+import com.pulse.content.mail.MailDispatcher;
 import com.pulse.content.mail.OutgoingEmail;
+import com.pulse.content.newsletter.NewsletterTokens;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
@@ -35,17 +37,20 @@ public class ContactService {
     private static final Logger log = LoggerFactory.getLogger(ContactService.class);
 
     private final JdbcClient jdbc;
-    private final Mailer mailer;
+    private final MailDispatcher mail;
     private final String notifyAddress;
     private final byte[] ipHashKey;
 
-    public ContactService(JdbcClient jdbc, Mailer mailer,
+    public ContactService(JdbcClient jdbc, MailDispatcher mail,
                           @Value("${pulse.contact.notify:}") String notifyAddress,
-                          @Value("${pulse.contact.ip-hash-secret:}") String ipHashSecret) {
+                          @Value("${pulse.contact.ip-hash-secret:}") String ipHashSecret, Environment env) {
         this.jdbc = jdbc;
-        this.mailer = mailer;
+        this.mail = mail;
         this.notifyAddress = notifyAddress == null || notifyAddress.isBlank() ? null : notifyAddress.trim();
         if (ipHashSecret == null || ipHashSecret.isBlank()) {
+            // Replicas with different keys would hash the same IP differently: "50 messages from one sender"
+            // becomes invisible. Fail fast outside dev/test (PULSE_IP_HASH_SECRET).
+            NewsletterTokens.requireDevOrTest(env, "pulse.contact.ip-hash-secret (PULSE_IP_HASH_SECRET)");
             this.ipHashKey = new byte[32];               // per-process key: hashes still group messages until a restart
             new SecureRandom().nextBytes(ipHashKey);
         } else {
@@ -72,12 +77,9 @@ public class ContactService {
                 .query(UUID.class).single();
         log.info("Contact message {} received", id);
         if (notifyAddress != null) {
-            try {
-                mailer.send(notification(name, email, message));
-            } catch (RuntimeException e) {
-                // The message is safely stored; a failed notification must not turn into an error for the visitor.
-                log.warn("Contact notification email failed ({})", e.getClass().getSimpleName());
-            }
+            // The message is safely stored; the notification goes out in the background, and a failed one must
+            // not turn into an error (or a slow response) for the visitor.
+            mail.dispatch(notification(name, email, message), "contact notification");
         }
     }
 

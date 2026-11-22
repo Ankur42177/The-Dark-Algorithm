@@ -2,6 +2,7 @@ package com.pulse.content.newsletter;
 
 import com.pulse.content.common.InputRules;
 import com.pulse.content.common.ResourceNotFoundException;
+import com.pulse.content.mail.MailDispatcher;
 import com.pulse.content.mail.Mailer;
 import com.pulse.content.mail.OutgoingEmail;
 import com.pulse.content.newsletter.NewsletterDtos.AdminOverview;
@@ -50,14 +51,17 @@ public class NewsletterService {
     private final NewsletterTokens tokens;
     private final NewsletterEmails emails;
     private final Mailer mailer;
+    private final MailDispatcher dispatcher;
     private final Duration resendCooldown;
 
     public NewsletterService(NewsletterRepository repo, NewsletterTokens tokens, NewsletterEmails emails, Mailer mailer,
+                             MailDispatcher dispatcher,
                              @Value("${pulse.newsletter.resend-cooldown:10m}") Duration resendCooldown) {
         this.repo = repo;
         this.tokens = tokens;
         this.emails = emails;
         this.mailer = mailer;
+        this.dispatcher = dispatcher;
         this.resendCooldown = resendCooldown;
     }
 
@@ -76,9 +80,10 @@ public class NewsletterService {
         if (needsMail.isEmpty()) {
             return;                                                     // ACTIVE already, or a confirm mail just went out
         }
-        // Sent AFTER the row is committed and OUTSIDE any transaction. If SMTP fails the user just submits again
-        // (after the cooldown); we log instead of failing the request, which would also leak "this address is new".
-        sendQuietly(emails.confirm(email, InputRules.blankToNull(req.name()), emails.confirmUrl(token)), "confirm");
+        // Sent AFTER the row is committed, OUTSIDE any transaction and ASYNCHRONOUSLY: the request returns as fast
+        // for a new address as for an active one (no timing side channel), and a slow SMTP server can't hold request
+        // threads. If sending fails the user just submits again (after the cooldown).
+        dispatcher.dispatch(emails.confirm(email, InputRules.blankToNull(req.name()), emails.confirmUrl(token)), "confirm");
     }
 
     /**
@@ -116,7 +121,15 @@ public class NewsletterService {
         do {
             batch = repo.activeWithoutDelivery(period, after, BATCH);
             for (Subscriber s : batch) {
-                switch (deliver(s, period, false)) {
+                Outcome outcome;
+                try {
+                    outcome = deliver(s, period, false);
+                } catch (RuntimeException e) {
+                    // e.g. a database hiccup in claim/markSent: one subscriber must not abort the whole run
+                    log.warn("Newsletter delivery to subscriber {} failed ({})", s.id(), e.getClass().getSimpleName());
+                    outcome = Outcome.FAILED;
+                }
+                switch (outcome) {
                     case SENT -> sent++;
                     case FAILED -> failed++;
                     case SKIPPED -> skipped++;

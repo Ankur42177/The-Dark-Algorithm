@@ -1,0 +1,15 @@
+-- =====================================================================
+-- V8: index for "Around the web" filtered by source (?source=Cloudflare Blog).
+--
+-- Found by the Phase 7 performance audit: FeedRepository adds
+--   WHERE source_name = :source ORDER BY published_at DESC, id DESC LIMIT n
+-- and neither V5 index starts with source_name, so Postgres did a Seq Scan
+-- of feed_items + a Sort. Same shape as feed_items_section_idx: equality
+-- column first, then the keyset ordering columns, so the planner walks the
+-- index in order and stops after n rows (no sort).
+--
+-- Small table today (~1.4k rows): CREATE INDEX takes milliseconds. On a big
+-- live table you would use CREATE INDEX CONCURRENTLY (no write lock), which
+-- Flyway must then run outside a transaction.
+-- =====================================================================
+CREATE INDEX feed_items_source_idx ON feed_items (source_name, published_at DESC, id DESC);

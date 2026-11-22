@@ -32,8 +32,17 @@ public enum Section {
         return s == null ? null : s.canonical();
     }
 
-    /** Same mapping for raw strings coming from other services' events (e.g. "AI" → "TECH"). */
+    /**
+     * Same mapping for raw strings coming from other services' events ("AI" → "TECH"). Trimmed and upper-cased
+     * first: another service sending "ai" or " Tech" must not violate the CHECK constraint and push a perfectly
+     * good event to the dead-letter topic (Phase 7 review). Truly unknown values are returned as-is and still
+     * rejected by the database — that IS a bug worth a dead letter.
+     */
     public static String canonical(String s) {
-        return "AI".equals(s) ? TECH.name() : s;
+        if (s == null) {
+            return null;
+        }
+        String v = s.strip().toUpperCase(java.util.Locale.ROOT);
+        return "AI".equals(v) ? TECH.name() : v;
     }
 }

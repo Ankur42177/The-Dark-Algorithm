@@ -23,7 +23,11 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
                 // never call the developer's running website from tests (Blog_007/.env sets the secret)
                 "pulse.web.revalidate-secret=",
                 // newsletter: no timer (tests call the job), and every contact message notifies this address
-                "pulse.newsletter.cron=-", "pulse.contact.notify=owner@pulse.test"}) // jobs: run manually in tests
+                "pulse.newsletter.cron=-", "pulse.contact.notify=owner@pulse.test",
+                // send form emails synchronously so a test can read the link right after the HTTP call
+                "pulse.mail.async=false",
+                // the dev seed + rows the tests rely on (tests own their data: see db/testdata/R__test_fixtures.sql)
+                "spring.flyway.locations=classpath:db/migration,classpath:db/seed,classpath:db/testdata"}) // jobs: run manually in tests
 @ActiveProfiles("dev")
 @Import(TestMailConfig.class)   // emails are captured in memory, never sent or logged
 public abstract class IntegrationTestBase {

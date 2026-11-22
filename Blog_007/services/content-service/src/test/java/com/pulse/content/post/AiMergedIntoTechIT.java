@@ -88,6 +88,48 @@ class AiMergedIntoTechIT extends IntegrationTestBase {
         assertThat(redis.opsForZSet().score(tech, "kafka-consumer-groups-explained")).isEqualTo(1.0);
     }
 
+    @Test
+    void concurrentStartsMergeTheAiBoardOnlyOnce() throws Exception {
+        // Several replicas start at the same moment after V6 (rolling deploy / scale-up). The first version
+        // checked hasKey → ZUNIONSTORE → DELETE, so two replicas could both add the AI scores (counted double).
+        String ai = CacheKeys.trending(Section.AI);
+        String tech = CacheKeys.trending(Section.TECH);
+        redis.delete(List.of(ai, tech));
+        redis.opsForZSet().add(ai, "rag-in-one-picture", 5);
+        redis.opsForZSet().add(tech, "rag-in-one-picture", 2);
+
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var runs = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+        for (int i = 0; i < 8; i++) {
+            runs.add(pool.submit(() -> {
+                start.await();
+                redisCleanup.run(null);
+                return null;
+            }));
+        }
+        start.countDown();                                            // release all 8 "replicas" at once
+        for (var r : runs) {
+            r.get();
+        }
+        pool.shutdown();
+
+        assertThat(redis.hasKey(ai)).isFalse();
+        assertThat(redis.opsForZSet().score(tech, "rag-in-one-picture")).isEqualTo(7.0);   // 2 + 5, not 2 + 5 + 5
+        assertThat(redis.keys(ai + ":merging:*")).isEmpty();           // the private copy is cleaned up
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void sectionNamesFromOtherServicesAreNormalised() {
+        // a late "ai" / " Tech " event must land in TECH instead of violating the CHECK constraint (→ DLT)
+        assertThat(Section.canonical("AI")).isEqualTo("TECH");
+        assertThat(Section.canonical(" ai ")).isEqualTo("TECH");
+        assertThat(Section.canonical("football")).isEqualTo("FOOTBALL");
+        assertThat(Section.canonical((String) null)).isNull();
+        assertThat(Section.canonical(Section.AI)).isEqualTo(Section.TECH);
+    }
+
     private static Flyway flyway(DriverManagerDataSource ds, String target) {
         return Flyway.configure().dataSource(ds).locations("classpath:db/migration").target(target).load();
     }

@@ -1,0 +1,98 @@
+{{- /*
+PostgreSQL as a StatefulSet (stable name pulse-postgres-0 + its OWN PersistentVolumeClaim that survives
+pod restarts). Good for learning and local clusters. In production use a managed database or an operator
+(e.g. CloudNativePG) that handles replicas, failover and backups.
+*/}}
+{{- with .Values.infra.postgres }}
+{{- if .enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulse-postgres-init
+  labels:
+    {{- include "pulse.commonLabels" $ | nindent 4 }}
+data:
+  # Same script Docker Compose uses: one database + one login per service (database-per-service).
+  01-create-databases.sh: |
+    {{- $.Files.Get "files/postgres-init.sh" | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulse-postgres
+  labels:
+    {{- include "pulse.commonLabels" $ | nindent 4 }}
+spec:
+  clusterIP: None              # "headless": DNS returns the pod IP directly (StatefulSets need this)
+  selector:
+    app.kubernetes.io/name: pulse-postgres
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pulse-postgres
+  labels:
+    {{- include "pulse.commonLabels" $ | nindent 4 }}
+spec:
+  serviceName: pulse-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pulse-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pulse-postgres
+        app.kubernetes.io/component: infrastructure
+        app.kubernetes.io/part-of: pulse
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .image | quote }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            {{- range $env, $key := dict "POSTGRES_PASSWORD" "POSTGRES_SUPERUSER_PASSWORD" "CONTENT_DB_PASSWORD" "CONTENT_DB_PASSWORD" "INGESTION_DB_PASSWORD" "INGESTION_DB_PASSWORD" "ASSISTANT_DB_PASSWORD" "ASSISTANT_DB_PASSWORD" }}
+            - name: {{ $env }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secrets.name }}
+                  key: {{ $key }}
+            {{- end }}
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", "postgres"]
+            periodSeconds: 5
+          resources:
+            {{- toYaml .resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql       # Postgres 18 image layout
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: pulse-postgres-init
+            defaultMode: 0555
+  # One PVC per pod, created from this template: pulse-postgres-0 always gets data-pulse-postgres-0.
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .storage }}
+{{- end }}
+{{- end }}

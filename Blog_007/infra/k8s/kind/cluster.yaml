@@ -1,0 +1,19 @@
+# =====================================================================
+# kind ("Kubernetes IN Docker") cluster for Pulse: every Kubernetes NODE is a Docker container.
+#   kind create cluster --config infra/k8s/kind/cluster.yaml      (scripts/k8s-up.sh does this)
+# Designed and developed by Ankur Kumar · © 2026 Ravenclaw_007 LLC
+# =====================================================================
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: pulse                       # → kubeconfig context "kind-pulse", node containers "pulse-control-plane", "pulse-worker"
+nodes:
+  - role: control-plane           # runs the API server, etcd, scheduler, controller-manager
+    image: kindest/node:v1.35.8   # Kubernetes 1.35 (kubectl 1.34 on the Mac is within the ±1 version skew)
+    # Publish NodePorts on your Mac. Traffic to localhost:30081 enters this node container and
+    # kube-proxy forwards it to a content-service pod on ANY node.
+    extraPortMappings:
+      - { containerPort: 30000, hostPort: 30000, listenAddress: "127.0.0.1", protocol: TCP }  # web
+      - { containerPort: 30080, hostPort: 30080, listenAddress: "127.0.0.1", protocol: TCP }  # api-gateway (Phase 5)
+      - { containerPort: 30081, hostPort: 30081, listenAddress: "127.0.0.1", protocol: TCP }  # content-service
+  - role: worker                  # where our pods actually run (the control plane is "tainted" against apps)
+    image: kindest/node:v1.35.8

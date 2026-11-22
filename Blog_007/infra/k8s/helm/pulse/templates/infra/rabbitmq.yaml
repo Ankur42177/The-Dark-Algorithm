@@ -1,0 +1,68 @@
+{{- /*
+OPTIONAL single-node RabbitMQ for local experiments with Phase 7 (KEDA scales ingestion workers on
+feed.fetch.q length). Production: the RabbitMQ Cluster Operator (`RabbitmqCluster` resource, 3 nodes,
+quorum queues).
+*/}}
+{{- with .Values.infra.rabbitmq }}
+{{- if .enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulse-rabbitmq
+  labels:
+    {{- include "pulse.commonLabels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: pulse-rabbitmq
+  ports:
+    - { name: amqp, port: 5672 }
+    - { name: management, port: 15672 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pulse-rabbitmq
+  labels:
+    {{- include "pulse.commonLabels" $ | nindent 4 }}
+spec:
+  serviceName: pulse-rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pulse-rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pulse-rabbitmq
+        app.kubernetes.io/component: infrastructure
+        app.kubernetes.io/part-of: pulse
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .image | quote }}
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: pulse
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secrets.name }}
+                  key: RABBITMQ_PASSWORD
+          ports:
+            - { name: amqp, containerPort: 5672 }
+            - { name: management, containerPort: 15672 }
+          resources:
+            {{- toYaml .resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .storage }}
+{{- end }}
+{{- end }}

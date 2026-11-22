@@ -1,0 +1,5 @@
+# Build context for infra/docker/spring-service.Dockerfile is Blog_007/.
+# Send Docker only what it needs: the built jars. Never secrets.
+**
+!services/*/target/*.jar
+services/*/target/*-plain.jar

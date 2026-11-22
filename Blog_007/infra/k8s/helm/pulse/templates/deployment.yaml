@@ -1,0 +1,120 @@
+{{- /*
+One Deployment per enabled entry in .Values.services. A Deployment keeps N identical pods running and
+replaces them gradually (rolling update) when the template changes.
+`range $name, $svc := .Values.services` loops over the map: $name = "content-service", $svc = its settings.
+Inside range, "." changes meaning, so we use "$" for the chart root (.Values, .Release, ...).
+*/}}
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+{{- $ctx := dict "name" $name "root" $ }}
+{{- $auto := $svc.autoscaling | default dict }}
+{{- $hpa := $auto.hpa | default dict }}
+{{- $keda := $auto.keda | default dict }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "pulse.labels" $ctx | nindent 4 }}
+  annotations:
+    {{- include "pulse.annotations" $ctx | nindent 4 }}
+spec:
+  {{- /* When an autoscaler owns the replica count, Helm must NOT set it, or every upgrade resets it. */}}
+  {{- if not (or $hpa.enabled $keda.enabled) }}
+  replicas: {{ $svc.replicas | default 1 }}
+  {{- end }}
+  revisionHistoryLimit: 3              # old ReplicaSets kept for `kubectl rollout undo`
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1                      # start 1 extra new pod...
+      maxUnavailable: 0                # ...and never go below the desired count (zero-downtime deploys)
+  selector:
+    matchLabels:
+      {{- include "pulse.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pulse.labels" $ctx | nindent 8 }}
+      annotations:
+        # Config changes don't restart pods by themselves. Hashing the config into an annotation does:
+        # a different hash = a different pod template = a rolling update.
+        checksum/config: {{ toJson $svc.env | sha256sum | trunc 16 }}
+    spec:
+      serviceAccountName: {{ $.Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      # Time allowed for a clean shutdown: preStop sleep + Spring's graceful shutdown (30 s) + margin.
+      terminationGracePeriodSeconds: {{ $svc.terminationGracePeriodSeconds | default 45 }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      {{- with $svc.topologySpread }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "pulse.image" (dict "image" $svc.image "root" $) | quote }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          {{- with $svc.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+            {{- if $svc.managementPort }}
+            - name: management
+              containerPort: {{ $svc.managementPort }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ $name }}-config
+          {{- if $svc.secretEnv }}
+          env:
+            {{- range $svc.secretEnv }}
+            - name: {{ . }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secrets.name }}
+                  key: {{ . }}
+            {{- end }}
+          {{- end }}
+          {{- with $svc.probes }}
+          # startupProbe: gives a slow-starting JVM time to boot; liveness/readiness only start after it passes.
+          startupProbe:
+            httpGet: { path: {{ .startup.path }}, port: {{ .port }} }
+            periodSeconds: {{ .startup.periodSeconds | default 5 }}
+            failureThreshold: {{ .startup.failureThreshold | default 36 }}
+          # livenessProbe: "is the process stuck?" → failing restarts the container.
+          livenessProbe:
+            httpGet: { path: {{ .liveness.path }}, port: {{ .port }} }
+            periodSeconds: {{ .liveness.periodSeconds | default 10 }}
+            failureThreshold: {{ .liveness.failureThreshold | default 3 }}
+          # readinessProbe: "can it take traffic right now?" → failing removes the pod from the Service.
+          readinessProbe:
+            httpGet: { path: {{ .readiness.path }}, port: {{ .port }} }
+            periodSeconds: {{ .readiness.periodSeconds | default 5 }}
+            failureThreshold: {{ .readiness.failureThreshold | default 3 }}
+          {{- end }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: {{ $svc.readOnlyRootFilesystem | default false }}
+            capabilities:
+              drop: ["ALL"]
+          lifecycle:
+            preStop:
+              # Wait a few seconds before SIGTERM so the Service/endpoints stop sending NEW requests first.
+              sleep:
+                seconds: {{ $svc.preStopSleepSeconds | default 10 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp                # writable scratch space even with a read-only root filesystem
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+{{- end }}
+{{- end }}
